@@ -50,6 +50,11 @@ TAIL_FRAMES = [
     [(6, 2, "F"), (5, 1, "F"), (4, 0, "F")],  # curled up
 ]
 
+# Resting pose once the wag is done: a hook that curls back toward the
+# body, reading as a curled/crossed tail rather than a straight line
+# jutting out (which just looked like a stick, not a tail at rest).
+REST_TAIL = [(8, 2, "F"), (9, 2, "F"), (9, 3, "F")]
+
 # Fixed brand color, independent of the user's dashboard theme — a logo
 # should stay recognizable regardless of the terminal's color scheme.
 # A muted brown/tan instead of orange, which read as literal fruit.
@@ -107,7 +112,7 @@ def render(color: bool = None) -> str:
         # (piped, NO_COLOR, non-tty) skip straight to the text.
         return "\n".join(line for line in text_lines if line)
 
-    face = _face_lines(_build_frame(TAIL_FRAMES[1]))  # tail extended as the static pose
+    face = _face_lines(_build_frame(REST_TAIL))  # curled resting pose, not a straight line
     rows = [f"{f}  {t}" for f, t in itertools.zip_longest(face, text_lines, fillvalue="")]
     return "\n".join(rows)
 
@@ -121,28 +126,40 @@ def _pingpong(frames: list) -> list:
     return list(frames) + list(frames[-2:0:-1])
 
 
-def render_animated(cycles: int = 5, delay: float = 0.15) -> None:
-    """Prints the wag in place using cursor-up redraws. Only does anything
-    live in a real interactive terminal — a captured/non-tty context (a
-    pipe, a redirect, Claude's own Bash tool output) can't display a
-    redraw animation meaningfully, so it just prints the static banner."""
+def render_animated(cycles: int = 1, delay: float = 0.1) -> None:
+    """Prints the wag in place using cursor-up redraws, then settles on
+    REST_TAIL. Only does anything live in a real interactive terminal — a
+    captured/non-tty context (a pipe, a redirect, Claude's own Bash tool
+    output) can't display a redraw animation meaningfully, so it just
+    prints the static banner. A brief, skippable flourish, not a delay
+    standing between the user and the menu — Ctrl+C during it jumps
+    straight to the resting pose instead of crashing out of the program."""
     color = _resolve_color(None)
     if not (color and sys.stdout.isatty()):
         print(render(color=color))
         return
 
     text_lines = _text_lines(color=True)
-    sequence = _pingpong(TAIL_FRAMES) * cycles
-    first = True
-    for overlay in sequence:
+
+    def draw(overlay, first):
         face = _face_lines(_build_frame(overlay))
         rows = [f"{f}  {t}" for f, t in itertools.zip_longest(face, text_lines, fillvalue="")]
         if not first:
             print(f"\033[{len(rows)}A", end="")
         print("\n".join(rows))
         sys.stdout.flush()
-        first = False
-        time.sleep(delay)
+        return len(rows)
+
+    sequence = _pingpong(TAIL_FRAMES) * cycles
+    first = True
+    try:
+        for overlay in sequence:
+            draw(overlay, first)
+            first = False
+            time.sleep(delay)
+    except KeyboardInterrupt:
+        pass  # skip straight to the resting pose below, don't crash out
+    draw(REST_TAIL, first)
 
 
 def enabled() -> bool:

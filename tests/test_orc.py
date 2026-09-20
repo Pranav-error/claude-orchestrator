@@ -6,6 +6,7 @@ import json
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -605,6 +606,30 @@ class BannerTests(OrcTestCase):
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             banner.render_animated(cycles=5, delay=1.0)
+        self.assertIn("claude-orchestrator", buf.getvalue())
+
+    def test_rest_tail_is_within_bounds_and_uses_a_valid_palette_entry(self):
+        height, width = len(banner.BASE_GRID), len(banner.BASE_GRID[0])
+        for r, col, ch in banner.REST_TAIL:
+            self.assertTrue(0 <= r < height)
+            self.assertTrue(0 <= col < width)
+            self.assertIn(ch, banner.PALETTE)
+
+    def test_static_render_uses_the_rest_pose_not_a_straight_line(self):
+        rest_frame = banner._build_frame(banner.REST_TAIL)
+        extended_frame = banner._build_frame(banner.TAIL_FRAMES[1])
+        self.assertNotEqual(rest_frame, extended_frame)
+
+    def test_ctrl_c_during_animation_settles_on_rest_pose_instead_of_crashing(self):
+        # A real tty is required for the animated path to even attempt the
+        # sleep loop (see the fallback test above) -- patch isatty so this
+        # test exercises that path without needing an actual terminal.
+        settings.set_value("color", "always")
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), \
+             unittest.mock.patch("sys.stdout.isatty", return_value=True), \
+             unittest.mock.patch("orc.banner.time.sleep", side_effect=KeyboardInterrupt):
+            banner.render_animated(cycles=3, delay=0.01)  # must not raise
         self.assertIn("claude-orchestrator", buf.getvalue())
 
     def test_enabled_reflects_setting(self):
