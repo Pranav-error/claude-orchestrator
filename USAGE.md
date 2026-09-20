@@ -328,21 +328,29 @@ saved preference for that one run without touching the saved config.
 
 ### Startup banner
 
-Like Claude Code's own icon-and-version header, or Gemini CLI's
-compact ASCII icon, `orc` (the interactive menu) and `orc version`
-show a small gradient-colored mark plus name/version — using whichever
-theme you've set, so it matches the rest of the output:
+Like Claude Code's own colored icon-and-version header, or Gemini
+CLI's compact ASCII icon — since this tool is literally named `orc`,
+the mark is a small green orc face (pixel art, using the Unicode
+half-block trick for roughly square pixels) rather than an abstract
+shape. Fixed brand colors, independent of your dashboard theme — a
+logo stays recognizable the way Claude's icon is always orange
+regardless of your terminal theme. Shown by `orc` (the interactive
+menu) and `orc version`; only renders in color mode (a real terminal,
+or `--color always`) — in plain-text/piped output it's skipped
+entirely rather than shown as meaningless ASCII noise.
 
 ```
 $ orc version
-◤   ◥  claude-orchestrator
-  ◆    v0.1.0 · orc
-◣   ◢  a personal control plane for Claude Code
+[green pixel-art orc face]  claude-orchestrator
+[with red eyes and          v0.1.0 · orc
+ cream tusks]               a personal control plane for Claude Code
 
 orc 0.1.0
 code:    /path/to/claude-orchestrator
 data:    /path/to/your/data/repo
 ```
+
+(Run it yourself to see the actual colors — this file can't render ANSI.)
 
 Purely cosmetic — turn it off for a quieter start with
 `orc config set banner false`.

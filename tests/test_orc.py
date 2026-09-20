@@ -544,20 +544,25 @@ class BannerTests(OrcTestCase):
         self.assertIn("claude-orchestrator", text)
         self.assertIn("orc", text)
 
-    def test_render_is_three_lines_matching_the_mark(self):
+    def test_plain_mode_has_no_color_codes_and_no_pixel_art(self):
         text = banner.render(color=False)
-        self.assertEqual(len(text.splitlines()), len(banner.MARK))
+        self.assertNotIn("\033[", text)
+        # plain mode skips the face entirely -- it only means anything in color
+        for row in banner.PIXELS:
+            self.assertNotIn(row, text)
 
-    def test_color_always_forces_ansi(self):
-        plain = banner.render(color=False)
-        colored = banner.render(color=True)
-        self.assertNotIn("\033[", plain)
-        self.assertIn("\033[", colored)
-
-    def test_mono_theme_produces_no_color_codes_even_with_color_true(self):
-        settings.set_value("theme", "mono")
+    def test_color_mode_renders_the_pixel_face_with_ansi(self):
         text = banner.render(color=True)
-        self.assertNotIn("\033[38;5;", text)
+        self.assertIn("\033[38;5;", text)
+        # half the pixel rows (half-block doubling) plus the text lines
+        self.assertEqual(len(text.splitlines()), len(banner.PIXELS) // 2)
+
+    def test_face_palette_covers_every_legend_character_used(self):
+        used = set("".join(banner.PIXELS))
+        self.assertEqual(used, set(banner.PALETTE.keys()))
+
+    def test_transparent_pixel_pairs_render_as_plain_space(self):
+        self.assertEqual(banner._half_block(".", "."), " ")
 
     def test_enabled_reflects_setting(self):
         settings.set_value("banner", True)

@@ -5,7 +5,7 @@ All notable changes to this project are documented here. Format loosely follows 
 ## [Unreleased]
 
 ### Added
-- Startup banner — a small gradient-colored mark plus name/version, shown by `orc` (the interactive menu) and the new `orc version` command. Uses whichever theme is configured. Toggle with `orc config set banner false`.
+- Startup banner — a small pixel-art orc face (Unicode half-block trick, fixed brand colors) plus name/version, shown by `orc` (the interactive menu) and the new `orc version` command. Only renders in color mode; skipped entirely in plain-text output. Toggle with `orc config set banner false`.
 
 ## [0.1.0] - 2026-09-20
 
