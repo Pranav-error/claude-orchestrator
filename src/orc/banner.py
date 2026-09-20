@@ -16,21 +16,24 @@ import time
 from . import __version__, settings as settings_mod
 from .dashboard import BOLD, DIM, RESET, _resolve_color
 
-# A rounded head (ears close together, not spread to the corners) tapering
-# into a body — single solid tone, no outline or facial detail. At this
-# resolution a clean silhouette reads far better than a detailed face.
+# Ear tips are isolated peaks for the first 3 rows (a real gap between
+# them) and only merge into the rounded cranium below that — a previous
+# version merged them immediately into a round top and, fairly, just read
+# as a piece of fruit with a stem. Separated pointy ears are what actually
+# say "cat" at this resolution. Single solid tone, no outline or face.
 _HEAD = [
-    "...F.F...",
-    "..FFFFF..",
-    ".FFFFFFF.",
-    "FFFFFFFFF",
-    "FFFFFFFFF",
-    "FFFFFFFFF",
-    "FFFFFFFFF",
-    ".FFFFFFF.",
-    "..FFFFF..",
-    "...FFF...",
-    "....F....",
+    ".F.......F.",
+    ".FF.....FF.",
+    ".FFF...FFF.",
+    ".FFFFFFFFF.",
+    "FFFFFFFFFFF",
+    "FFFFFFFFFFF",
+    "FFFFFFFFFFF",
+    ".FFFFFFFFF.",
+    "..FFFFFFF..",
+    "...FFFFF...",
+    "....FFF....",
+    ".....F.....",
 ]
 _TAIL_WORKSPACE = "...."  # 4 transparent columns, prepended to each row —
                            # the tail curls out to the LEFT of the body.
@@ -49,9 +52,10 @@ TAIL_FRAMES = [
 
 # Fixed brand color, independent of the user's dashboard theme — a logo
 # should stay recognizable regardless of the terminal's color scheme.
+# A muted brown/tan instead of orange, which read as literal fruit.
 PALETTE = {
     ".": None,   # transparent — lets the terminal's own background show
-    "F": 208,    # fur (orange), the only color in the silhouette
+    "F": 137,    # fur (warm tan/brown), the only color in the silhouette
 }
 
 
