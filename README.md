@@ -1,7 +1,7 @@
 # claude-orchestrator
 
-[![PyPI](https://img.shields.io/pypi/v/claude-orchestrator)](https://pypi.org/project/claude-orchestrator/)
-[![Python versions](https://img.shields.io/pypi/pyversions/claude-orchestrator)](https://pypi.org/project/claude-orchestrator/)
+[![PyPI](https://img.shields.io/pypi/v/claude-orc)](https://pypi.org/project/claude-orc/)
+[![Python versions](https://img.shields.io/pypi/pyversions/claude-orc)](https://pypi.org/project/claude-orc/)
 [![Tests](https://github.com/Pranav-error/claude-orchestrator/actions/workflows/test.yml/badge.svg)](https://github.com/Pranav-error/claude-orchestrator/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -60,7 +60,7 @@ Pick one:
 
 **As a Python package** (recommended — gives you a real `orc` command, no PATH setup):
 ```bash
-pip install claude-orchestrator          # or: pipx install claude-orchestrator
+pip install claude-orc          # or: pipx install claude-orc
 ```
 
 **Zero-install, from a clone:**

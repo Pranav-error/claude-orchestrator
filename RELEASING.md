@@ -7,7 +7,7 @@ PyPI publishing uses [trusted publishing](https://docs.pypi.org/trusted-publishe
 1. Log into [pypi.org](https://pypi.org) (create an account first if you don't have one).
 2. Go to **Your account → Publishing** ([pypi.org/manage/account/publishing/](https://pypi.org/manage/account/publishing/)).
 3. Add a new **pending publisher** with:
-   - PyPI project name: `claude-orchestrator`
+   - PyPI project name: `claude-orc`
    - Owner: `Pranav-error`
    - Repository name: `claude-orchestrator`
    - Workflow filename: `publish.yml`

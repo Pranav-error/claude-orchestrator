@@ -23,7 +23,7 @@ command -v orc
 
 If that fails, tell the user `orc` isn't installed rather than guessing —
 point them at https://github.com/Pranav-error/claude-orchestrator
-(`pip install claude-orchestrator`, or `pipx install claude-orchestrator`)
+(`pip install claude-orc`, or `pipx install claude-orc`)
 and don't fabricate output.
 
 ## When to reach for it

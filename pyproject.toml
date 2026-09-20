@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "claude-orchestrator"
+name = "claude-orc"
 version = "0.1.0"
 description = "A personal control plane for a Claude Code setup that spans multiple accounts and machines — memory sync, skill registry, usage reporting, and a terminal dashboard."
 readme = "README.md"

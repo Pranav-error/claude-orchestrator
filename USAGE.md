@@ -352,7 +352,7 @@ data convenient — it isn't the only way in.
 
 ## On a new machine
 
-1. `pip install claude-orchestrator` (or clone + `PATH` — see README)
+1. `pip install claude-orc` (or clone + `PATH` — see README)
 2. If you already have a private data repo from another machine: `export ORC_DATA_DIR="/path/to/it"` then `orc sync pull`. Otherwise: `orc init`.
 3. Manually copy the `hooks` block from another machine's `~/.claude/settings.json` if you want sync automatic there too — it's machine-local Claude Code config, not something `orc sync` carries.
 4. `/plugin marketplace add Pranav-error/claude-orchestrator` then `/plugin install claude-orchestrator@claude-orchestrator` if you want `/orc` and the auto-invoked skill there too.
