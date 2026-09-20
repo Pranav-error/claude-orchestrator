@@ -63,7 +63,8 @@ Opens a numbered menu (works from any directory once `bin/` is on
 | `orc dashboard --html [--no-open]` | Opt-in: write a shareable HTML file instead, open it in your browser |
 | `orc dashboard --theme <name>` / `--color always\|never` / `--days N` | One-off overrides without touching your saved preferences |
 | `orc config show` | Print your saved theme/icons/usage-window/color preferences |
-| `orc config set <key> <value>` | Persist a preference — `theme` (amber/ocean/sunset/mono), `icons` (true/false), `usage_days`, `color` (auto/always/never) |
+| `orc config set <key> <value>` | Persist a preference — `theme` (amber/ocean/sunset/mono), `icons` (true/false), `usage_days`, `color` (auto/always/never), `banner` (true/false) |
+| `orc version` | Show the startup banner, version, and install/data paths |
 
 ### 3. From inside a Claude Code chat prompt
 
@@ -324,6 +325,27 @@ theme = ocean
 
 Any dashboard flag (`--theme`, `--color`, `--days`) overrides the
 saved preference for that one run without touching the saved config.
+
+### Startup banner
+
+Like Claude Code's own icon-and-version header, or Gemini CLI's
+compact ASCII icon, `orc` (the interactive menu) and `orc version`
+show a small gradient-colored mark plus name/version — using whichever
+theme you've set, so it matches the rest of the output:
+
+```
+$ orc version
+◤   ◥  claude-orchestrator
+  ◆    v0.1.0 · orc
+◣   ◢  a personal control plane for Claude Code
+
+orc 0.1.0
+code:    /path/to/claude-orchestrator
+data:    /path/to/your/data/repo
+```
+
+Purely cosmetic — turn it off for a quieter start with
+`orc config set banner false`.
 
 ## Accessing raw data without `orc` at all
 

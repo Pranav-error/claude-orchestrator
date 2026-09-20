@@ -96,7 +96,7 @@ orc dashboard
 | **Agent log** | `orc agent log/list` — append-only record of subagent runs, filterable by account/outcome/date. |
 | **Sync** | `orc sync push/pull/status` — wraps git for your private data repo. Refuses to pull over uncommitted local changes rather than guessing how to merge them. |
 | **Dashboard** | `orc dashboard` — a colored snapshot rendered directly in your terminal (boxed header, usage bar chart, skills, recent runs). No browser, no server. `--html` opts into a shareable file instead. |
-| **Config** | `orc config show/set` — theme (amber/ocean/sunset/mono), icons on/off, usage window, forced color. |
+| **Config** | `orc config show/set` — theme (amber/ocean/sunset/mono), icons on/off, usage window, forced color, startup banner on/off. |
 
 Full command reference: [USAGE.md](USAGE.md).
 

@@ -14,7 +14,7 @@ import contextlib
 import io
 import subprocess
 
-from orc import agentlog, config, dashboard, identity, init, memory, settings, skills, sync, usage  # noqa: E402
+from orc import agentlog, banner, config, dashboard, identity, init, memory, settings, skills, sync, usage  # noqa: E402
 from orc.cli import main as cli_main  # noqa: E402
 
 
@@ -529,6 +529,41 @@ class SettingsTests(OrcTestCase):
             th = settings.theme(name)
             self.assertIn("gradient", th)
             self.assertIn("good", th)
+
+    def test_banner_defaults_on_and_coerces_from_string(self):
+        self.assertIs(settings.get("banner"), True)
+        settings.set_value("banner", "false")
+        self.assertIs(settings.get("banner"), False)
+        settings.set_value("banner", "true")
+        self.assertIs(settings.get("banner"), True)
+
+
+class BannerTests(OrcTestCase):
+    def test_render_contains_name_and_version(self):
+        text = banner.render(color=False)
+        self.assertIn("claude-orchestrator", text)
+        self.assertIn("orc", text)
+
+    def test_render_is_three_lines_matching_the_mark(self):
+        text = banner.render(color=False)
+        self.assertEqual(len(text.splitlines()), len(banner.MARK))
+
+    def test_color_always_forces_ansi(self):
+        plain = banner.render(color=False)
+        colored = banner.render(color=True)
+        self.assertNotIn("\033[", plain)
+        self.assertIn("\033[", colored)
+
+    def test_mono_theme_produces_no_color_codes_even_with_color_true(self):
+        settings.set_value("theme", "mono")
+        text = banner.render(color=True)
+        self.assertNotIn("\033[38;5;", text)
+
+    def test_enabled_reflects_setting(self):
+        settings.set_value("banner", True)
+        self.assertTrue(banner.enabled())
+        settings.set_value("banner", False)
+        self.assertFalse(banner.enabled())
 
 
 class DashboardTests(OrcTestCase):

@@ -2,7 +2,7 @@ import argparse
 import json
 import sys
 
-from . import agentlog, config, dashboard, identity, init, memory, menu, settings, skills, sync, usage
+from . import __version__, agentlog, banner, config, dashboard, identity, init, memory, menu, settings, skills, sync, usage
 
 
 def cmd_identity_set(args):
@@ -220,9 +220,21 @@ def cmd_init(args):
     print('  export ORC_DATA_DIR="$HOME/my-private-orc-data"')
 
 
+def cmd_version(args):
+    if banner.enabled():
+        print(banner.render())
+        print()
+    print(f"orc {__version__}")
+    print(f"code:    {config.CODE_ROOT}")
+    print(f"data:    {config.DATA_ROOT}")
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="orc", description="Personal control plane for a multi-account Claude Code setup.")
     sub = p.add_subparsers(dest="command", required=False)
+
+    version_p = sub.add_parser("version", help="show version, install paths, and the startup banner")
+    version_p.set_defaults(func=cmd_version)
 
     init_p = sub.add_parser("init", help="bootstrap a private data repo (run this first, once)")
     init_p.set_defaults(func=cmd_init)

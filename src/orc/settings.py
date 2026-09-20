@@ -15,6 +15,7 @@ DEFAULTS = {
     "icons": True,
     "usage_days": 14,
     "color": "auto",  # auto | always | never
+    "banner": True,
 }
 
 THEMES = {
@@ -77,7 +78,7 @@ def set_value(key: str, value):
         raise ValueError(f"unknown theme {value!r} — valid themes: {', '.join(THEMES)}")
     if key == "color" and value not in ("auto", "always", "never"):
         raise ValueError("color must be one of: auto, always, never")
-    if key == "icons":
+    if key in ("icons", "banner"):
         value = value if isinstance(value, bool) else str(value).lower() in ("1", "true", "yes", "on")
     if key == "usage_days":
         value = int(value)

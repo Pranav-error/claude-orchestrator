@@ -4,7 +4,7 @@ the `orc <command> <subcommand>` CLI uses — this is a friendlier front door,
 not a second implementation.
 """
 
-from . import agentlog, dashboard, identity, memory, settings, skills, sync, usage
+from . import agentlog, banner, dashboard, identity, memory, settings, skills, sync, usage
 
 
 def _pause():
@@ -212,6 +212,9 @@ MENU = [
 
 
 def run():
+    if banner.enabled():
+        print(banner.render())
+
     while True:
         print("\n" + "=" * 40)
         print(" claude-orchestrator")
