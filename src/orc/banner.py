@@ -112,7 +112,16 @@ def render(color: bool = None) -> str:
     return "\n".join(rows)
 
 
-def render_animated(cycles: int = 2, delay: float = 0.12) -> None:
+def _pingpong(frames: list) -> list:
+    """[0, 1, 2] -> [0, 1, 2, 1] so a repeated sequence swings back and
+    forth (a real wag) instead of snapping from the last frame straight
+    back to the first every cycle."""
+    if len(frames) < 3:
+        return list(frames)
+    return list(frames) + list(frames[-2:0:-1])
+
+
+def render_animated(cycles: int = 5, delay: float = 0.15) -> None:
     """Prints the wag in place using cursor-up redraws. Only does anything
     live in a real interactive terminal — a captured/non-tty context (a
     pipe, a redirect, Claude's own Bash tool output) can't display a
@@ -123,17 +132,17 @@ def render_animated(cycles: int = 2, delay: float = 0.12) -> None:
         return
 
     text_lines = _text_lines(color=True)
+    sequence = _pingpong(TAIL_FRAMES) * cycles
     first = True
-    for _ in range(cycles):
-        for overlay in TAIL_FRAMES:
-            face = _face_lines(_build_frame(overlay))
-            rows = [f"{f}  {t}" for f, t in itertools.zip_longest(face, text_lines, fillvalue="")]
-            if not first:
-                print(f"\033[{len(rows)}A", end="")
-            print("\n".join(rows))
-            sys.stdout.flush()
-            first = False
-            time.sleep(delay)
+    for overlay in sequence:
+        face = _face_lines(_build_frame(overlay))
+        rows = [f"{f}  {t}" for f, t in itertools.zip_longest(face, text_lines, fillvalue="")]
+        if not first:
+            print(f"\033[{len(rows)}A", end="")
+        print("\n".join(rows))
+        sys.stdout.flush()
+        first = False
+        time.sleep(delay)
 
 
 def enabled() -> bool:

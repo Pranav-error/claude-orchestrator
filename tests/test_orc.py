@@ -585,6 +585,19 @@ class BannerTests(OrcTestCase):
     def test_transparent_pixel_pairs_render_as_plain_space(self):
         self.assertEqual(banner._half_block(".", "."), " ")
 
+    def test_pingpong_swings_back_through_the_middle_not_a_snap(self):
+        result = banner._pingpong([0, 1, 2])
+        self.assertEqual(result, [0, 1, 2, 1])
+
+    def test_pingpong_repeated_never_jumps_directly_from_last_to_first(self):
+        sequence = banner._pingpong(banner.TAIL_FRAMES) * 3
+        for i in range(len(sequence) - 1):
+            # consecutive entries must be adjacent positions in TAIL_FRAMES
+            # (or the same), never a jump from the last frame to the first
+            a, b = sequence[i], sequence[i + 1]
+            ia, ib = banner.TAIL_FRAMES.index(a), banner.TAIL_FRAMES.index(b)
+            self.assertLessEqual(abs(ia - ib), 1)
+
     def test_render_animated_falls_back_to_static_when_not_a_live_tty(self):
         # test runner's stdout is never a real tty, so this must not hang
         # in a sleep loop or attempt cursor-movement redraws -- it should
