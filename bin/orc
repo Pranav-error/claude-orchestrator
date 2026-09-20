@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Launcher so `orc` works from any directory, regardless of cwd.
+# Add this repo's bin/ to your PATH once (e.g. in ~/.zshrc):
+#   export PATH="$HOME/Documents/GitHub/claude-orchestrator/bin:$PATH"
+set -e
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/../cli"
+exec python3 -m orc "$@"
