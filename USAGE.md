@@ -75,10 +75,11 @@ Two different mechanisms, for two different needs:
   work for the interactive menu — a chat turn can't hold a live,
   numbered back-and-forth with a program waiting on keyboard input.
 
-- **`/orc <words>`** — a custom slash command (`claude-commands/orc.md`
-  in this repo, copy or symlink it to `~/.claude/commands/orc.md`) that
-  lets Claude itself map plain words onto the right flag command and
-  run it for you:
+- **`/orc <words>`** — a slash command that lets Claude itself map plain
+  words onto the right flag command and run it for you. Comes with the
+  Claude Code plugin (`/plugin install claude-orchestrator@claude-orchestrator`
+  after adding the marketplace — see README), or copy/symlink
+  `commands/orc.md` to `~/.claude/commands/orc.md` manually:
   ```
   /orc status
   /orc search some-term
@@ -98,6 +99,12 @@ Two different mechanisms, for two different needs:
   result panel (expand "Ran 1 shell command" to see it) — Claude adds
   only a short caption underneath, never a retyped copy, since a
   markdown code fence doesn't render ANSI color at all.
+
+- **The `claude-orchestrator` skill** (also bundled with the plugin,
+  `skills/claude-orchestrator/SKILL.md`) — Claude can reach for `orc` on
+  its own, without you typing `/orc` or `!orc`, when you ask something
+  like "how much have I used today" or "search my memory for X". It
+  checks `orc` is actually installed before assuming any of this works.
 
 ## What's automatic vs. what you trigger
 
@@ -136,9 +143,8 @@ data convenient — it isn't the only way in.
 
 ## On a new machine
 
-1. `git clone https://github.com/Pranav-error/claude-orchestrator ~/claude-orchestrator`
-2. Add to your shell rc file: `export PATH="$HOME/claude-orchestrator/bin:$PATH"`
-3. If you already have a private data repo from another machine: `export ORC_DATA_DIR="/path/to/it"` then `orc sync pull`. Otherwise: `orc init`.
-4. Manually copy the `hooks` block from another machine's `~/.claude/settings.json` if you want sync automatic there too — it's machine-local Claude Code config, not something `orc sync` carries.
-5. Copy or symlink `claude-commands/orc.md` to `~/.claude/commands/orc.md` if you want `/orc` there.
-6. `orc identity set <label>` to tell it which account you're using on this machine.
+1. `pip install claude-orchestrator` (or clone + `PATH` — see README)
+2. If you already have a private data repo from another machine: `export ORC_DATA_DIR="/path/to/it"` then `orc sync pull`. Otherwise: `orc init`.
+3. Manually copy the `hooks` block from another machine's `~/.claude/settings.json` if you want sync automatic there too — it's machine-local Claude Code config, not something `orc sync` carries.
+4. `/plugin marketplace add Pranav-error/claude-orchestrator` then `/plugin install claude-orchestrator@claude-orchestrator` if you want `/orc` and the auto-invoked skill there too.
+5. `orc identity set <label>` to tell it which account you're using on this machine.

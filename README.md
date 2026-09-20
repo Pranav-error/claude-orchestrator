@@ -19,7 +19,7 @@ This code is public. Your actual data is not — and never touches this repo.
 ```mermaid
 flowchart TB
     subgraph Code["This repo (public, code only)"]
-        CLI["cli/orc — the orc CLI"]
+        CLI["src/orc — the orc CLI"]
     end
 
     subgraph Data["Your own private repo (ORC_DATA_DIR)"]
@@ -51,17 +51,34 @@ flowchart TB
 
 ## Install
 
+Pick one:
+
+**As a Python package** (recommended — gives you a real `orc` command, no PATH setup):
+```bash
+pip install claude-orchestrator          # or: pipx install claude-orchestrator
+```
+
+**Zero-install, from a clone:**
 ```bash
 git clone https://github.com/Pranav-error/claude-orchestrator ~/claude-orchestrator
 echo 'export PATH="$HOME/claude-orchestrator/bin:$PATH"' >> ~/.zshrc   # or ~/.bashrc
 source ~/.zshrc
+```
 
+Either way, then:
+```bash
 orc init          # bootstraps your private data directory + git repo
 orc identity set mine
 orc dashboard
 ```
 
 `orc init` prints the one manual step left (creating an actual private remote — `gh repo create --private` or any git host) so your data can sync across machines too. No dependencies beyond Python 3.10+ and git — the CLI is stdlib-only.
+
+**As a Claude Code plugin** (adds `/orc` and an auto-invoked skill that reaches for `orc` on its own when relevant — install the CLI above first, this just teaches Claude about it):
+```
+/plugin marketplace add Pranav-error/claude-orchestrator
+/plugin install claude-orchestrator@claude-orchestrator
+```
 
 ## What it does
 
@@ -82,7 +99,12 @@ Bare `orc` (no arguments) drops into a numbered interactive menu covering all of
 
 ## Using it from inside Claude Code
 
-Copy (or symlink) `claude-commands/orc.md` to `~/.claude/commands/orc.md` to get a `/orc` slash command usable directly in a Claude Code chat — `/orc status`, `/orc search <query>`, `/orc dashboard`, etc. See the top of that file for how the argument mapping works, and why `orc dashboard` specifically needs `--color always` when run through Claude's own Bash tool.
+Installing the plugin (above) gives you both pieces automatically:
+
+- **`/orc <words>`** — a slash command that maps plain words onto the right `orc` invocation: `/orc status`, `/orc search <query>`, `/orc dashboard`, etc. See `commands/orc.md` for how the mapping works, and why `orc dashboard` specifically needs `--color always` when run through Claude's own Bash tool.
+- **A skill named `claude-orchestrator`** (`skills/claude-orchestrator/SKILL.md`) that Claude can reach for *on its own* — ask "how much have I used today" or "search my memory for X" without typing `/orc` at all.
+
+Not using the plugin system? Copy or symlink `commands/orc.md` to `~/.claude/commands/orc.md` for just the slash command.
 
 To make sync automatic at the start/end of every Claude Code session (any account, any project), add to your `~/.claude/settings.json`:
 
@@ -98,7 +120,7 @@ To make sync automatic at the start/end of every Claude Code session (any accoun
 ## Testing
 
 ```bash
-cd cli && python3 -m unittest tests.test_orc -v
+python3 -m unittest discover -s tests -v
 ```
 
 64 tests, stdlib `unittest` only, fully isolated via tmp-dir path overrides — none of them touch your real `~/.claude` or your data repo. Includes a real two-machine push/pull simulation over a local bare git remote.

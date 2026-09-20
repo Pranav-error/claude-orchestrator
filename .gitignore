@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 dashboard.html
+*.egg-info/
+build/
+dist/

@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-orchestrator"
+version = "0.1.0"
+description = "A personal control plane for a Claude Code setup that spans multiple accounts and machines — memory sync, skill registry, usage reporting, and a terminal dashboard."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Sai Pranav" }]
+keywords = ["claude-code", "claude", "cli", "productivity"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Utilities",
+]
+
+[project.urls]
+Homepage = "https://github.com/Pranav-error/claude-orchestrator"
+Issues = "https://github.com/Pranav-error/claude-orchestrator/issues"
+
+[project.scripts]
+orc = "orc.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

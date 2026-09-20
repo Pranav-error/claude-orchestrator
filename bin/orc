@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Launcher so `orc` works from any directory, regardless of cwd.
+# Zero-install launcher for people who cloned this repo instead of `pip
+# install`-ing it. If you pip-installed (or `pipx install`), you already have
+# a real `orc` console script on PATH and don't need this file at all.
+#
 # Add this repo's bin/ to your PATH once (e.g. in ~/.zshrc):
-#   export PATH="$HOME/Documents/GitHub/claude-orchestrator/bin:$PATH"
+#   export PATH="$HOME/path/to/claude-orchestrator/bin:$PATH"
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/../cli"
+cd "$SCRIPT_DIR/../src"
 exec python3 -m orc "$@"

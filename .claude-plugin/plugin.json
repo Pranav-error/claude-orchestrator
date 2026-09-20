@@ -1,0 +1,10 @@
+{
+  "name": "claude-orchestrator",
+  "version": "0.1.0",
+  "description": "A personal control plane for a Claude Code setup that spans multiple accounts and machines — memory sync, skill registry, usage reporting, and a terminal dashboard.",
+  "author": {
+    "name": "Sai Pranav",
+    "url": "https://github.com/Pranav-error"
+  },
+  "homepage": "https://github.com/Pranav-error/claude-orchestrator"
+}

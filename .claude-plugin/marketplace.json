@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "claude-orchestrator",
+  "description": "Marketplace for the claude-orchestrator plugin — a personal control plane for a Claude Code setup spanning multiple accounts and machines.",
+  "owner": {
+    "name": "Sai Pranav",
+    "url": "https://github.com/Pranav-error"
+  },
+  "plugins": [
+    {
+      "name": "claude-orchestrator",
+      "description": "A personal control plane for a Claude Code setup that spans multiple accounts and machines — memory sync, skill registry, usage reporting, and a terminal dashboard. Requires the orc CLI: pip install claude-orchestrator (or clone the repo — see README).",
+      "source": "./",
+      "version": "0.1.0",
+      "homepage": "https://github.com/Pranav-error/claude-orchestrator"
+    }
+  ]
+}
