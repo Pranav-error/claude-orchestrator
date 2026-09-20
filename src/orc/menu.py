@@ -197,45 +197,27 @@ def log_agent_run():
     print("logged")
 
 
-# Grouped for display only — order here IS the numbering (1..N), grouping
-# just adds section labels between runs of items. Selection logic below
-# only ever indexes into the flattened MENU list, so reordering/regrouping
-# this is always safe.
-MENU_GROUPS = [
-    ("OVERVIEW", [
-        ("Status at a glance", show_status),
-        ("Dashboard", open_dashboard),
-    ]),
-    ("ACCOUNT", [
-        ("Switch account", switch_identity),
-    ]),
-    ("MEMORY", [
-        ("Search memory", search_memory),
-        ("Show/add memory links", memory_links),
-        ("Sync memory", sync_memory),
-    ]),
-    ("SKILLS", [
-        ("Manage skills", manage_skills),
-    ]),
-    ("USAGE & LOGS", [
-        ("Usage report", usage_report),
-        ("Log an agent run", log_agent_run),
-    ]),
-    ("SYNC", [
-        ("Sync (push/pull to other machines)", sync_repo),
-    ]),
-    ("SETTINGS", [
-        ("Preferences (theme, icons, colors)", preferences),
-    ]),
+MENU = [
+    ("Status at a glance", show_status),
+    ("Dashboard", open_dashboard),
+    ("Switch account", switch_identity),
+    ("Search memory", search_memory),
+    ("Show/add memory links", memory_links),
+    ("Sync memory", sync_memory),
+    ("Manage skills", manage_skills),
+    ("Usage report", usage_report),
+    ("Log an agent run", log_agent_run),
+    ("Sync (push/pull to other machines)", sync_repo),
+    ("Preferences (theme, icons, colors)", preferences),
 ]
-
-MENU = [item for _, items in MENU_GROUPS for item in items]
 
 
 def render_menu_screen(color: bool = None) -> str:
     """Pure — no input() — so it's testable like dashboard.render_terminal().
     Boxed header (identity + sync state, same language as the dashboard)
-    plus the grouped, numbered menu."""
+    plus a compact numbered menu — tried grouping into labeled sections
+    with blank lines between them, but for 11 items that just made the
+    whole thing tall without earning it, so back to a flat list."""
     color = _resolve_color(color)
 
     def c(code, text):
@@ -266,13 +248,8 @@ def render_menu_screen(color: bool = None) -> str:
         "",
     ]
 
-    n = 1
-    for section, items in MENU_GROUPS:
-        lines.append(c(DIM, section))
-        for label, _ in items:
-            lines.append(f"  {c(prompt_color, str(n))}  {label}")
-            n += 1
-        lines.append("")
+    for n, (label, _) in enumerate(MENU, 1):
+        lines.append(f"  {c(prompt_color, str(n))}  {label}")
     lines.append(f"  {c(DIM, '0')}  Quit")
 
     return "\n".join(lines)

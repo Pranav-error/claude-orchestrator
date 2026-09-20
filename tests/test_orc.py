@@ -751,17 +751,25 @@ class InitTests(OrcTestCase):
 
 
 class MenuTests(OrcTestCase):
-    def test_menu_flattens_groups_in_order(self):
-        flattened = [item for _, items in menu.MENU_GROUPS for item in items]
-        self.assertEqual(menu.MENU, flattened)
-
-    def test_render_contains_every_menu_label_and_section(self):
+    def test_render_contains_every_menu_label(self):
         text = menu.render_menu_screen(color=False)
-        for section, items in menu.MENU_GROUPS:
-            self.assertIn(section, text)
-            for label, _ in items:
-                self.assertIn(label, text)
+        for label, _ in menu.MENU:
+            self.assertIn(label, text)
         self.assertIn("Quit", text)
+
+    def test_render_is_compact_no_blank_lines_between_items(self):
+        # Regression test: a previous version grouped items into labeled
+        # sections with a blank line after each, which for 11 items made
+        # the menu noticeably tall without earning it (real feedback:
+        # "this big menu looks ugly"). The item list itself must be one
+        # unbroken block.
+        text = menu.render_menu_screen(color=False)
+        item_lines = [line for line in text.splitlines() if line.strip() and line.strip()[0].isdigit()]
+        # every digit-led line must be immediately followed by another
+        # digit-led line or nothing -- i.e. no gaps once the list starts
+        first_item_idx = text.splitlines().index(item_lines[0])
+        block = text.splitlines()[first_item_idx:]
+        self.assertTrue(all(line.strip() for line in block), "blank line found inside the menu item list")
 
     def test_render_numbers_items_sequentially_from_one(self):
         text = menu.render_menu_screen(color=False)

@@ -126,7 +126,7 @@ def _pingpong(frames: list) -> list:
     return list(frames) + list(frames[-2:0:-1])
 
 
-def render_animated(cycles: int = 1, delay: float = 0.1) -> None:
+def render_animated(cycles: int = 1, delay: float = 0.25) -> None:
     """Prints the wag in place using cursor-up redraws, then settles on
     REST_TAIL. Only does anything live in a real interactive terminal — a
     captured/non-tty context (a pipe, a redirect, Claude's own Bash tool
