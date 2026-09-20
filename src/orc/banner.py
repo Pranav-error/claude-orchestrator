@@ -1,8 +1,9 @@
 """Startup banner — a small pixel-art mascot plus name/version, the same
 idea other AI CLIs show on launch (Claude Code's own colored icon,
-Gemini CLI's compact icon, GitHub's Octocat). An original cat design (not
-a copy of Octocat), with a tail that actually wiggles when the terminal
-supports it.
+Gemini CLI's compact icon). An original cat silhouette — clean single-tone
+shape rather than a detailed face, which is what actually reads well at
+this resolution — with a tail that wags to the side when the terminal
+supports a live redraw.
 
 Purely cosmetic: toggle it off with `orc config set banner false`.
 """
@@ -15,47 +16,42 @@ import time
 from . import __version__, settings as settings_mod
 from .dashboard import BOLD, DIM, RESET, _resolve_color
 
-# 9x12 head, plus 4 extra columns of "tail workspace" appended to every
-# row (all transparent in the base grid) so the tail can extend outside
-# the head silhouette and move between frames without resizing anything.
+# A rounded head (ears close together, not spread to the corners) tapering
+# into a body — single solid tone, no outline or facial detail. At this
+# resolution a clean silhouette reads far better than a detailed face.
 _HEAD = [
-    "..O...O..",
-    ".OFO.OFO.",
-    "OFFFFFFFO",
-    "OFEFFFEFO",
-    "OFFFFFFFO",
-    "OFFFPFFFO",
-    "OFFFFFFFO",
-    "OFFFFFFFO",
-    ".OFFFFFO.",
-    "..OFFFO..",
-    "...OFO...",
-    "....O....",
+    "...F.F...",
+    "..FFFFF..",
+    ".FFFFFFF.",
+    "FFFFFFFFF",
+    "FFFFFFFFF",
+    "FFFFFFFFF",
+    "FFFFFFFFF",
+    ".FFFFFFF.",
+    "..FFFFF..",
+    "...FFF...",
+    "....F....",
 ]
-_TAIL_WORKSPACE = "...."  # 4 transparent columns appended to each head row
+_TAIL_WORKSPACE = "...."  # 4 transparent columns, prepended to each row —
+                           # the tail curls out to the LEFT of the body.
 
-BASE_GRID = [list(row + _TAIL_WORKSPACE) for row in _HEAD]
+BASE_GRID = [list(_TAIL_WORKSPACE + row) for row in _HEAD]
 
-# The tail's attachment point is fixed; only the outer two pixels move
-# across frames, which is what actually reads as a wag rather than a
-# random flicker.
-_TAIL_BASE = [(7, 9, "T")]
+# The tail's attachment point (where it meets the body) is fixed; only the
+# outer segments move across frames, sweeping from tucked-in to extended
+# and curled, which is what actually reads as a wag.
+_TAIL_BASE = [(7, 3, "F")]
 TAIL_FRAMES = [
-    [(6, 10, "T"), (5, 11, "T")],  # tip up
-    [(7, 10, "T"), (7, 11, "T")],  # tip out
-    [(8, 10, "T"), (9, 11, "T")],  # tip down
+    [(8, 2, "F"), (9, 1, "F")],              # tucked down
+    [(7, 2, "F"), (7, 1, "F"), (7, 0, "F")],  # extended out
+    [(6, 2, "F"), (5, 1, "F"), (4, 0, "F")],  # curled up
 ]
 
-# Fixed brand colors, independent of the user's dashboard theme — a logo
-# should stay recognizable, the way Claude's icon is always orange and
-# GitHub's Octocat is always the same palette, regardless of terminal theme.
+# Fixed brand color, independent of the user's dashboard theme — a logo
+# should stay recognizable regardless of the terminal's color scheme.
 PALETTE = {
     ".": None,   # transparent — lets the terminal's own background show
-    "O": 233,    # near-black outline
-    "F": 208,    # fur (orange)
-    "T": 172,    # tail (slightly darker orange, reads as a distinct part)
-    "E": 34,     # eyes (green)
-    "P": 211,    # nose (pink)
+    "F": 208,    # fur (orange), the only color in the silhouette
 }
 
 
@@ -107,7 +103,7 @@ def render(color: bool = None) -> str:
         # (piped, NO_COLOR, non-tty) skip straight to the text.
         return "\n".join(line for line in text_lines if line)
 
-    face = _face_lines(_build_frame(TAIL_FRAMES[1]))  # tail "out" as the static pose
+    face = _face_lines(_build_frame(TAIL_FRAMES[1]))  # tail extended as the static pose
     rows = [f"{f}  {t}" for f, t in itertools.zip_longest(face, text_lines, fillvalue="")]
     return "\n".join(rows)
 
