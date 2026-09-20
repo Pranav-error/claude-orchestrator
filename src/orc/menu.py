@@ -213,7 +213,7 @@ MENU = [
 
 def run():
     if banner.enabled():
-        print(banner.render())
+        banner.render_animated()
 
     while True:
         print("\n" + "=" * 40)

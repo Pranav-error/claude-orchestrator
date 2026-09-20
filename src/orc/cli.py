@@ -222,7 +222,7 @@ def cmd_init(args):
 
 def cmd_version(args):
     if banner.enabled():
-        print(banner.render())
+        banner.render_animated()
         print()
     print(f"orc {__version__}")
     print(f"code:    {config.CODE_ROOT}")

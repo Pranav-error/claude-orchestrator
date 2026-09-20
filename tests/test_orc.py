@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import contextlib
+import copy
 import io
 import subprocess
 
@@ -544,25 +545,54 @@ class BannerTests(OrcTestCase):
         self.assertIn("claude-orchestrator", text)
         self.assertIn("orc", text)
 
-    def test_plain_mode_has_no_color_codes_and_no_pixel_art(self):
+    def test_plain_mode_has_no_color_codes(self):
         text = banner.render(color=False)
         self.assertNotIn("\033[", text)
-        # plain mode skips the face entirely -- it only means anything in color
-        for row in banner.PIXELS:
-            self.assertNotIn(row, text)
 
     def test_color_mode_renders_the_pixel_face_with_ansi(self):
         text = banner.render(color=True)
         self.assertIn("\033[38;5;", text)
-        # half the pixel rows (half-block doubling) plus the text lines
-        self.assertEqual(len(text.splitlines()), len(banner.PIXELS) // 2)
 
-    def test_face_palette_covers_every_legend_character_used(self):
-        used = set("".join(banner.PIXELS))
-        self.assertEqual(used, set(banner.PALETTE.keys()))
+    def test_base_grid_rows_are_all_equal_width(self):
+        widths = {len(row) for row in banner.BASE_GRID}
+        self.assertEqual(len(widths), 1, f"BASE_GRID rows have mismatched widths: {widths}")
+
+    def test_every_legend_character_in_base_grid_has_a_palette_entry(self):
+        used = {ch for row in banner.BASE_GRID for ch in row}
+        self.assertTrue(used.issubset(set(banner.PALETTE.keys())))
+
+    def test_every_tail_frame_overlay_is_within_grid_bounds(self):
+        height = len(banner.BASE_GRID)
+        width = len(banner.BASE_GRID[0])
+        for overlay in banner.TAIL_FRAMES:
+            for r, col, ch in overlay:
+                self.assertTrue(0 <= r < height, f"row {r} out of bounds (height {height})")
+                self.assertTrue(0 <= col < width, f"col {col} out of bounds (width {width})")
+                self.assertIn(ch, banner.PALETTE)
+
+    def test_build_frame_applies_base_and_overlay(self):
+        frame = banner._build_frame(banner.TAIL_FRAMES[0])
+        r, col, ch = banner._TAIL_BASE[0]
+        self.assertEqual(frame[r][col], ch)
+        r2, col2, ch2 = banner.TAIL_FRAMES[0][0]
+        self.assertEqual(frame[r2][col2], ch2)
+
+    def test_build_frame_does_not_mutate_base_grid(self):
+        original = copy.deepcopy(banner.BASE_GRID)
+        banner._build_frame(banner.TAIL_FRAMES[2])
+        self.assertEqual(banner.BASE_GRID, original)
 
     def test_transparent_pixel_pairs_render_as_plain_space(self):
         self.assertEqual(banner._half_block(".", "."), " ")
+
+    def test_render_animated_falls_back_to_static_when_not_a_live_tty(self):
+        # test runner's stdout is never a real tty, so this must not hang
+        # in a sleep loop or attempt cursor-movement redraws -- it should
+        # just behave like render().
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            banner.render_animated(cycles=5, delay=1.0)
+        self.assertIn("claude-orchestrator", buf.getvalue())
 
     def test_enabled_reflects_setting(self):
         settings.set_value("banner", True)
