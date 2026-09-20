@@ -15,7 +15,7 @@ import copy
 import io
 import subprocess
 
-from orc import agentlog, banner, config, dashboard, identity, init, memory, settings, skills, sync, usage  # noqa: E402
+from orc import agentlog, banner, config, dashboard, identity, init, memory, menu, settings, skills, sync, usage  # noqa: E402
 from orc.cli import main as cli_main  # noqa: E402
 
 
@@ -723,6 +723,36 @@ class InitTests(OrcTestCase):
         init.run()
         second = init.run()
         self.assertTrue(second["already_initialized"])
+
+
+class MenuTests(OrcTestCase):
+    def test_menu_flattens_groups_in_order(self):
+        flattened = [item for _, items in menu.MENU_GROUPS for item in items]
+        self.assertEqual(menu.MENU, flattened)
+
+    def test_render_contains_every_menu_label_and_section(self):
+        text = menu.render_menu_screen(color=False)
+        for section, items in menu.MENU_GROUPS:
+            self.assertIn(section, text)
+            for label, _ in items:
+                self.assertIn(label, text)
+        self.assertIn("Quit", text)
+
+    def test_render_numbers_items_sequentially_from_one(self):
+        text = menu.render_menu_screen(color=False)
+        for i, (label, _) in enumerate(menu.MENU, 1):
+            self.assertIn(f"{i}  {label}", text)
+
+    def test_render_shows_current_identity_and_sync_branch(self):
+        identity.set_identity("mine")
+        text = menu.render_menu_screen(color=False)
+        self.assertIn("mine", text)
+
+    def test_color_mode_produces_ansi_plain_does_not(self):
+        colored = menu.render_menu_screen(color=True)
+        plain = menu.render_menu_screen(color=False)
+        self.assertIn("\033[", colored)
+        self.assertNotIn("\033[", plain)
 
 
 class CliErrorHandlingTests(OrcTestCase):

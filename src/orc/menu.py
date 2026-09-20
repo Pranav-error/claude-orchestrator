@@ -5,6 +5,7 @@ not a second implementation.
 """
 
 from . import agentlog, banner, dashboard, identity, memory, settings, skills, sync, usage
+from .dashboard import BOLD, DIM, RESET, _resolve_color, _term_width, _visible_len
 
 
 def _pause():
@@ -196,19 +197,85 @@ def log_agent_run():
     print("logged")
 
 
-MENU = [
-    ("Status at a glance", show_status),
-    ("Switch account", switch_identity),
-    ("Search memory", search_memory),
-    ("Show/add memory links", memory_links),
-    ("Sync memory", sync_memory),
-    ("Usage report", usage_report),
-    ("Manage skills", manage_skills),
-    ("Log an agent run", log_agent_run),
-    ("Sync (push/pull to other machines)", sync_repo),
-    ("Dashboard", open_dashboard),
-    ("Preferences (theme, icons, colors)", preferences),
+# Grouped for display only — order here IS the numbering (1..N), grouping
+# just adds section labels between runs of items. Selection logic below
+# only ever indexes into the flattened MENU list, so reordering/regrouping
+# this is always safe.
+MENU_GROUPS = [
+    ("OVERVIEW", [
+        ("Status at a glance", show_status),
+        ("Dashboard", open_dashboard),
+    ]),
+    ("ACCOUNT", [
+        ("Switch account", switch_identity),
+    ]),
+    ("MEMORY", [
+        ("Search memory", search_memory),
+        ("Show/add memory links", memory_links),
+        ("Sync memory", sync_memory),
+    ]),
+    ("SKILLS", [
+        ("Manage skills", manage_skills),
+    ]),
+    ("USAGE & LOGS", [
+        ("Usage report", usage_report),
+        ("Log an agent run", log_agent_run),
+    ]),
+    ("SYNC", [
+        ("Sync (push/pull to other machines)", sync_repo),
+    ]),
+    ("SETTINGS", [
+        ("Preferences (theme, icons, colors)", preferences),
+    ]),
 ]
+
+MENU = [item for _, items in MENU_GROUPS for item in items]
+
+
+def render_menu_screen(color: bool = None) -> str:
+    """Pure — no input() — so it's testable like dashboard.render_terminal().
+    Boxed header (identity + sync state, same language as the dashboard)
+    plus the grouped, numbered menu."""
+    color = _resolve_color(color)
+
+    def c(code, text):
+        return f"{code}{text}{RESET}" if (color and code) else text
+
+    width = _term_width()
+    theme = settings.theme()
+    prompt_color = theme["prompt"]
+
+    who = identity.current()
+    identity_label = who["label"] if who else "(not set)"
+    machine = who["machine"] if who else "-"
+    s = sync.status()
+    sync_bit = f"{s['branch']} ({'dirty' if s['dirty'] else 'clean'})"
+
+    def pad(content: str, inner_width: int) -> str:
+        return content + " " * max(0, inner_width - _visible_len(content))
+
+    title = c(BOLD, "claude-orchestrator")
+    meta = f"{c(prompt_color, '❯')} {identity_label} {c(DIM, 'on')} {machine}   {c(DIM, '·')}   {sync_bit}"
+    box_w = width - 2
+
+    lines = [
+        c(DIM, "╭" + "─" * box_w + "╮"),
+        c(DIM, "│ ") + pad(title, box_w - 2) + c(DIM, " │"),
+        c(DIM, "│ ") + pad(meta, box_w - 2) + c(DIM, " │"),
+        c(DIM, "╰" + "─" * box_w + "╯"),
+        "",
+    ]
+
+    n = 1
+    for section, items in MENU_GROUPS:
+        lines.append(c(DIM, section))
+        for label, _ in items:
+            lines.append(f"  {c(prompt_color, str(n))}  {label}")
+            n += 1
+        lines.append("")
+    lines.append(f"  {c(DIM, '0')}  Quit")
+
+    return "\n".join(lines)
 
 
 def run():
@@ -216,12 +283,7 @@ def run():
         banner.render_animated()
 
     while True:
-        print("\n" + "=" * 40)
-        print(" claude-orchestrator")
-        print("=" * 40)
-        for i, (label, _) in enumerate(MENU, 1):
-            print(f"  {i}. {label}")
-        print("  0. Quit")
+        print("\n" + render_menu_screen())
 
         choice = input("\n> ").strip()
         if choice == "0" or choice.lower() in ("q", "quit", "exit"):
