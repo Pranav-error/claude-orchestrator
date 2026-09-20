@@ -76,6 +76,20 @@ def memory_links():
         return
     try:
         data = memory.links_for(query)
+    except memory.AmbiguousMemoryQuery as e:
+        shown = e.matches[:15]
+        print(f"\n{len(e.matches)} memories match {query!r} — pick one:")
+        for i, m in enumerate(shown, 1):
+            print(f"  {i}. {m}")
+        if len(e.matches) > len(shown):
+            print(f"  ... and {len(e.matches) - len(shown)} more — try a more specific query")
+        choice = input("\n> ").strip()
+        try:
+            picked = shown[int(choice) - 1]
+        except (ValueError, IndexError):
+            print("cancelled")
+            return
+        data = memory.links_for(picked)  # exact stem always resolves uniquely
     except ValueError as e:
         print(f"error: {e}")
         return
@@ -167,17 +181,29 @@ def open_dashboard():
     print("\n" + dashboard.render_terminal())
 
 
+_VALUE_HINTS = {
+    "theme": lambda: ", ".join(settings.THEMES),
+    "color": lambda: "auto, always, never",
+    "icons": lambda: "true, false",
+    "banner": lambda: "true, false",
+    "usage_days": lambda: "a number, e.g. 7",
+}
+
+
 def preferences():
     _header("Preferences")
     current = settings.load()
     for k, v in current.items():
         print(f"  {k} = {v}")
-    print(f"\nthemes available: {', '.join(settings.THEMES)}")
-    print("\nWhich to change? (theme / icons / usage_days / color, or enter to skip)")
+    print(f"\nWhich to change? ({', '.join(settings.DEFAULTS)}, or enter to skip)")
     key = input("> ").strip()
     if not key:
         return
-    value = input(f"new value for {key}: ").strip()
+    if key not in settings.DEFAULTS:
+        print(f"error: unknown setting {key!r} — valid keys: {', '.join(settings.DEFAULTS)}")
+        return
+    hint = _VALUE_HINTS[key]()
+    value = input(f"new value for {key} ({hint}): ").strip()
     try:
         settings.set_value(key, value)
         print("saved")

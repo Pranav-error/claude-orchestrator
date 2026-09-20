@@ -144,6 +144,22 @@ def build_link_graph() -> dict:
     return graph
 
 
+class AmbiguousMemoryQuery(ValueError):
+    """Raised instead of a plain ValueError when a query matches more than
+    one memory, so callers can offer a numbered picker instead of just
+    printing a wall of comma-separated names."""
+
+    def __init__(self, query: str, matches: list[str]):
+        self.query = query
+        self.matches = matches
+        shown = matches[:15]
+        lines = [f"{query!r} is ambiguous — {len(matches)} matches:"]
+        lines += [f"  {i}. {m}" for i, m in enumerate(shown, 1)]
+        if len(matches) > len(shown):
+            lines.append(f"  ... and {len(matches) - len(shown)} more — try a more specific query")
+        super().__init__("\n".join(lines))
+
+
 def _find_one(query: str, graph: dict) -> str:
     q_slug = slugify(query)
     exact = [s for s in graph if s == q_slug]
@@ -153,7 +169,7 @@ def _find_one(query: str, graph: dict) -> str:
     if not matches:
         raise ValueError(f"no memory matches {query!r}")
     if len(matches) > 1:
-        raise ValueError(f"{query!r} is ambiguous, matches: {', '.join(matches)}")
+        raise AmbiguousMemoryQuery(query, matches)
     return matches[0]
 
 

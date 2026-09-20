@@ -216,6 +216,34 @@ class MemoryLinksTests(OrcTestCase):
         with self.assertRaises(ValueError):
             memory.links_for("test")
 
+    def test_ambiguous_query_carries_structured_matches_not_just_a_comma_blob(self):
+        # Regression test: real feedback was that an ambiguous query dumped
+        # 11 matches as one unreadable comma-separated line. The exception
+        # must expose the match list so a caller (the menu) can render a
+        # numbered picker instead.
+        self.write_memory_file("proj-a", "one.md", "Test Alpha", "project", "x")
+        self.write_memory_file("proj-a", "two.md", "Test Beta", "project", "y")
+        memory.sync()
+        with self.assertRaises(memory.AmbiguousMemoryQuery) as ctx:
+            memory.links_for("test")
+        self.assertEqual(len(ctx.exception.matches), 2)
+        self.assertIn("test-alpha", ctx.exception.matches)
+        self.assertIn("test-beta", ctx.exception.matches)
+        # the formatted message is a numbered, multi-line list, not a blob
+        text = str(ctx.exception)
+        self.assertIn("1. test-alpha", text)
+        self.assertIn("2. test-beta", text)
+
+    def test_ambiguous_query_message_truncates_past_fifteen_matches(self):
+        for i in range(20):
+            self.write_memory_file("proj-a", f"n{i}.md", f"Widget {i}", "project", f"unique body {i}")
+        memory.sync()
+        with self.assertRaises(memory.AmbiguousMemoryQuery) as ctx:
+            memory.links_for("widget")
+        self.assertEqual(len(ctx.exception.matches), 20)
+        text = str(ctx.exception)
+        self.assertIn("and 5 more", text)
+
 
 class SkillsTests(OrcTestCase):
     def _make_live_skill(self, name: str, filename: str = "SKILL.md", content: str = "skill content"):
@@ -756,6 +784,58 @@ class MenuTests(OrcTestCase):
         for label, _ in menu.MENU:
             self.assertIn(label, text)
         self.assertIn("Quit", text)
+
+    def test_every_setting_key_has_a_value_hint(self):
+        # Regression test: banner was added to settings.DEFAULTS but the
+        # preferences() hint text was a hardcoded string that never got
+        # updated, so real usage showed a stale prompt missing it.
+        self.assertEqual(set(menu._VALUE_HINTS.keys()), set(settings.DEFAULTS.keys()))
+
+    def test_preferences_rejects_unknown_key_without_asking_for_a_value(self):
+        # Only one input() is queued -- if the code asks a second question
+        # after an invalid key (the old behavior), this raises StopIteration
+        # and the test fails, which is exactly the regression to catch.
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), unittest.mock.patch("builtins.input", side_effect=["iocs"]):
+            menu.preferences()
+        self.assertIn("unknown setting 'iocs'", buf.getvalue())
+        self.assertIn("banner", buf.getvalue())  # the fixed key list includes it
+
+    def test_preferences_shows_a_type_specific_hint_then_saves(self):
+        # The hint text lives in the input() PROMPT argument, which the real
+        # input() writes to stdout but a mocked input() never does -- assert
+        # on the mock's call args instead of stdout for this one.
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), \
+             unittest.mock.patch("builtins.input", side_effect=["icons", "false"]) as mock_input:
+            menu.preferences()
+        second_call_prompt = mock_input.call_args_list[1].args[0]
+        self.assertIn("true, false", second_call_prompt)
+        self.assertIn("saved", buf.getvalue())
+        self.assertIs(settings.get("icons"), False)
+
+    def test_memory_links_ambiguous_offers_a_numbered_picker(self):
+        self.write_memory_file("proj-a", "one.md", "Test Alpha", "project", "x")
+        self.write_memory_file("proj-a", "two.md", "Test Beta", "project", "y")
+        memory.sync()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), \
+             unittest.mock.patch("builtins.input", side_effect=["test", "1", "n"]):
+            menu.memory_links()
+        output = buf.getvalue()
+        self.assertIn("2 memories match 'test'", output)
+        self.assertIn("1. test-alpha", output)
+        self.assertIn("Test Alpha", output)  # resolved and showed the picked memory's links
+
+    def test_memory_links_ambiguous_cancel_on_bad_pick(self):
+        self.write_memory_file("proj-a", "one.md", "Test Alpha", "project", "x")
+        self.write_memory_file("proj-a", "two.md", "Test Beta", "project", "y")
+        memory.sync()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), \
+             unittest.mock.patch("builtins.input", side_effect=["test", "99"]):
+            menu.memory_links()
+        self.assertIn("cancelled", buf.getvalue())
 
     def test_render_is_compact_no_blank_lines_between_items(self):
         # Regression test: a previous version grouped items into labeled
