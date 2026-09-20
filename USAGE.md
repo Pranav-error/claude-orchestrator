@@ -116,6 +116,215 @@ Two different mechanisms, for two different needs:
 | Identity tracking | Not automatic — nothing can guess which account you're using | `orc identity set <label>` whenever you switch |
 | Agent run logging | Not automatic | `orc agent log ...` |
 
+## Features in depth
+
+### Memory
+
+Claude Code already writes memory files under
+`~/.claude/projects/<encoded-cwd>/memory/*.md` — but keyed by whatever
+directory you happened to be in, so one ongoing effort's notes end up
+scattered across every project you ever ran Claude from while thinking
+about it. `orc memory sync` mirrors every one of those files into
+`$ORC_DATA_DIR/memory/<type>/`, organized by the `type:` field in each
+file's frontmatter (`user`, `feedback`, `project`, `reference`) instead
+of by path. It's idempotent and content-hash deduped — running it
+again after nothing changed mirrors nothing new, and two projects that
+happen to have identical memory content (a cloned starter repo, say)
+collapse into one entry instead of two.
+
+```
+$ orc memory sync
+mirrored: my-project/notes.md -> memory/project/notes.md
+2 mirrored, 41 already present
+```
+
+Search is full-text across name, description, and body:
+
+```
+$ orc memory search "auth flow"
+feedback/auth-retry-logic.md          auth-retry-logic
+  Retries must back off exponentially — a flat retry loop caused a real outage.
+```
+
+Memories can reference each other with `[[wiki-link]]` syntax (the
+same convention Claude itself uses when told to link related memories).
+`orc memory links "<name>"` resolves both directions — what a memory
+links *to*, and what links back to *it* — even across a name collision
+that forced a file to live as `name--project.md`:
+
+```
+$ orc memory links "auth-retry-logic"
+auth-retry-logic
+
+  links to (1):
+    -> incident-2026-08-postmortem
+
+  linked from (3):
+    <- session-handoff-2026-08-19
+    <- verification-habits
+    <- pr-body-conventions
+```
+
+`orc memory link "<from>" "<to>"` adds a link by hand (idempotent — a
+repeat call reports "already linked" instead of duplicating it).
+
+### Identity
+
+Claude Code never records which of *your* accounts a session ran
+under — it just authenticates and goes. If you rotate between your own
+account, a shared one, and a client's, `orc identity set <label>` is
+the only record of "who was active when," kept in a small machine-local
+file (`~/.claude-orchestrator-identity.json`) plus an append-only log
+in your data repo (`identity-log.jsonl`) so it also carries across
+machines via `orc sync`.
+
+Switching accounts on the *same* machine needs nothing beyond
+`orc identity set` — the filesystem doesn't change when you log into a
+different Claude account, so there's nothing to sync. Only a genuinely
+different physical machine needs `orc sync push/pull`.
+
+```
+$ orc identity set client-acme
+identity set: client-acme on my-laptop (since 2026-09-20T10:15:00+00:00)
+$ orc identity log
+2026-09-18T09:00:00+00:00  mine                  my-laptop
+2026-09-20T10:15:00+00:00  client-acme           my-laptop
+```
+
+### Usage
+
+Token counts come straight from Claude Code's own session transcripts
+(`~/.claude/projects/*/*.jsonl`) — every assistant message already
+carries an exact `usage` block. Nothing is estimated or tracked
+separately; `orc` just reads what's already on disk and aggregates it.
+
+```
+$ orc usage report --by day --since 2026-09-15
+key            input      output     cache_r     cache_w    msgs
+2026-09-15      1252      389779   234437519     5879759      628
+2026-09-16       842      327137   260835562     6949025      421
+...
+```
+
+`--by project` groups by the real working directory (shortened to `~`
+for readability) rather than Claude Code's dash-encoded folder name —
+`~/code/my-app`, not `-Users-you-code-my-app`. Two unrelated repos that
+happen to share a subfolder name (`backend/`, `frontend/`) stay
+distinct rows rather than silently merging.
+
+`--by identity` cross-references the identity log above, so you can
+see exactly how much was used under which account:
+
+```
+$ orc usage report --by identity
+key             input      output     cache_r     cache_w    msgs
+client-acme       472      190295    57369527      427323      236
+mine              809      289596   176988218     4786873      405
+unattributed    38464    16390562  8010690230   194017070    19222
+```
+
+(`unattributed` is any usage from before you ever ran `orc identity set` —
+there's no way to retroactively know who was active.)
+
+### Skills
+
+Most Claude Code skills people install by hand come from a random
+GitHub repo with zero record of where they came from. `orc skill
+adopt <name>` takes custody of an already-installed skill: it moves
+the real directory out of `~/.claude/skills/<name>` into
+`$ORC_DATA_DIR/skills-registry/store/<name>` and replaces it with a
+symlink, recording source/version/who-adopted-it in
+`skills-registry/manifest.json`. `orc skill install <name> <git-url>`
+does the same for a *new* skill, cloning it straight into the store.
+
+Once managed, `enable`/`disable` is just adding/removing that symlink —
+the content stays safe in the store either way, so disabling never
+risks losing it.
+
+```
+$ orc skill list
+name             status      source                          version
+banner-design    enabled     github.com/example/banner-skill  a1b2c3d
+brand            unmanaged   unmanaged                        -
+```
+
+Because the content lives in your data repo now, `orc sync` carries
+adopted skills across machines — no more re-downloading the same
+GitHub repo by hand on every new laptop.
+
+### Agent log
+
+Subagents are ephemeral — once one finishes there's no live state left
+to poll, so "tracking" them means keeping a record after the fact, not
+watching them run. `orc agent log "<task>" success|failed|partial
+[--notes]` appends one line (timestamp, account, machine, task,
+outcome, notes) to `agent-log/runs.jsonl`. `orc agent list` filters by
+`--since`, `--account`, or `--outcome`.
+
+```
+$ orc agent log "refactor auth module" success --notes "3 files changed"
+logged: [success] refactor auth module (account=mine, machine=my-laptop)
+$ orc agent list --outcome failed --since 2026-09-01
+2026-09-05T14:22:00+00:00  [failed ]  mine            migrate database schema
+  connection timeout after 30s, rolled back
+```
+
+### Sync
+
+`orc sync push/pull/status` wraps git for `$ORC_DATA_DIR`. `push`
+stages and commits anything dirty (tagged with the active identity and
+machine in the commit message) then pushes; `pull` refuses outright if
+you have uncommitted local changes rather than guessing how to merge
+them — conflicts on append-only logs and memory files are exactly the
+kind a silent `--theirs`/`--ours` resolution can quietly corrupt.
+
+```
+$ orc sync status
+branch: main   ahead: 0   behind: 1   clean
+$ orc sync pull
+pulled: Fast-forward, 3 files changed
+```
+
+Wire it to Claude Code's own `SessionStart`/`SessionEnd` hooks (see
+README) and this becomes fully automatic — pull at the start of every
+session, push at the end, regardless of which account is logged in.
+
+### Dashboard
+
+`orc dashboard` renders a colored snapshot directly in the terminal:
+a boxed header (identity, sync branch/dirty state), a row of stat
+cards (memory file count, skills enabled, messages in the usage
+window, agent runs logged), a gradient-colored bar chart of daily
+token usage, a skills table, and recent agent runs. No browser, no
+server — `--html` opts into a shareable static file instead, for the
+rare time you actually want to send someone a link.
+
+Respects `NO_COLOR` and non-tty output automatically (falls back to
+plain text when piped or redirected); `--color always` forces color
+even then, which is exactly what makes it render properly inside
+Claude Code's own Bash tool output (see the `/orc` section above).
+
+### Config
+
+Preferences persist in `~/.claude-orchestrator-settings.json`
+(machine-local, like identity — terminal capabilities and taste are a
+per-machine thing):
+
+```
+$ orc config show
+theme = amber
+icons = True
+usage_days = 14
+color = auto
+
+themes: amber, ocean, sunset, mono
+$ orc config set theme ocean
+theme = ocean
+```
+
+Any dashboard flag (`--theme`, `--color`, `--days`) overrides the
+saved preference for that one run without touching the saved config.
+
 ## Accessing raw data without `orc` at all
 
 Since everything is plain files, you don't strictly need the CLI for

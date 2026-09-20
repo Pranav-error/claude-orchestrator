@@ -1,5 +1,10 @@
 # claude-orchestrator
 
+[![PyPI](https://img.shields.io/pypi/v/claude-orchestrator)](https://pypi.org/project/claude-orchestrator/)
+[![Python versions](https://img.shields.io/pypi/pyversions/claude-orchestrator)](https://pypi.org/project/claude-orchestrator/)
+[![Tests](https://github.com/Pranav-error/claude-orchestrator/actions/workflows/test.yml/badge.svg)](https://github.com/Pranav-error/claude-orchestrator/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A personal control plane for a [Claude Code](https://claude.com/claude-code) setup that spans multiple accounts, multiple machines, and a pile of hand-installed skills — so none of that state is pinned to whichever login happens to be active right now.
 
 `orc` never calls the Anthropic API and never checks your subscription. It only reads and writes local files: your existing `~/.claude/projects/*/memory/*.md`, your session transcripts (`~/.claude/projects/*/*.jsonl`, where real token-usage numbers come from), your `~/.claude/skills/*`, and its own small private data store. It works with no Claude account logged in at all — the only network call anywhere in it is `orc sync`, and that talks to your own git remote, not Anthropic.
@@ -123,7 +128,11 @@ To make sync automatic at the start/end of every Claude Code session (any accoun
 python3 -m unittest discover -s tests -v
 ```
 
-64 tests, stdlib `unittest` only, fully isolated via tmp-dir path overrides — none of them touch your real `~/.claude` or your data repo. Includes a real two-machine push/pull simulation over a local bare git remote.
+64 tests, stdlib `unittest` only, fully isolated via tmp-dir path overrides — none of them touch your real `~/.claude` or your data repo. Includes a real two-machine push/pull simulation over a local bare git remote. Runs automatically on every push via GitHub Actions (badge above).
+
+## Releases & versioning
+
+This follows [semver](https://semver.org/). See [CHANGELOG.md](CHANGELOG.md) for what changed in each version, and [RELEASING.md](RELEASING.md) for the maintainer release process (tag a version, CI builds and publishes to PyPI automatically via trusted publishing — no manual upload step). `pip install --upgrade claude-orchestrator` to get the latest.
 
 ## License
 
