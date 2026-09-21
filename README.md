@@ -1,4 +1,9 @@
-# claude-orchestrator
+<p align="center">
+  <img src="assets/mascot-animated.svg" width="220" alt="orc mascot: a pixel-art cat with a wagging tail" />
+</p>
+
+<h1 align="center">claude-orchestrator</h1>
+<p align="center"><em>the same cat that greets you on <code>orc</code> startup — wagging its tail right here in the README, no screenshot required</em></p>
 
 [![PyPI](https://img.shields.io/pypi/v/claude-orc)](https://pypi.org/project/claude-orc/)
 [![Python versions](https://img.shields.io/pypi/pyversions/claude-orc)](https://pypi.org/project/claude-orc/)
@@ -16,6 +21,39 @@ Three problems, one root cause — state trapped on a single machine/account ins
 1. **Memory is fragmented and misfiled.** Claude Code's own per-project memory is keyed by working-directory path, not topic. Notes about one long-running effort end up scattered across a dozen unrelated project folders purely because of whatever `cwd` you happened to be in.
 2. **Accounts rotate.** Your own account, a shared one, a client's — swapped whenever one hits a rate limit. Nothing should leak into someone else's environment, and nothing should vanish when you step away from your own login.
 3. **Skills are ad-hoc.** Some come from a marketplace, some are hand-downloaded from random GitHub repos with no record of source, version, or whether they're still wanted.
+
+## What it looks like
+
+`orc dashboard` in a plain-text terminal (colored in a real one — theme picked with `orc config set theme`):
+
+```
+╭────────────────────────────────────────────────────────────────────────────╮
+│ claude-orchestrator                                                        │
+│ ❯ work on client-laptop   ·   main                                         │
+╰────────────────────────────────────────────────────────────────────────────╯
+
+┌────────────────┐ ┌────────────────┐ ┌────────────────┐ ┌────────────────┐
+│      212       │ │      6/9       │ │     18,442     │ │       37       │
+│  memory files  │ │ skills enabled │ │ messages (14d) │ │   agent runs   │
+└────────────────┘ └────────────────┘ └────────────────┘ └────────────────┘
+
+── USAGE · last 14 days ──────────────────────────────────────────────────────
+  2026-09-15  ██████████████░░░░░░░░░░░░░░░░     612,340  740 msgs
+  2026-09-16  ██████████████████████████████   1,304,912  1,588 msgs
+  2026-09-17  ████████░░░░░░░░░░░░░░░░░░░░░░     351,220  402 msgs
+  ...
+
+── SKILLS ────────────────────────────────────────────────────────────────────
+  caveman        ● enabled     orc-managed
+  graphify       ● enabled     unmanaged
+  superpowers    ○ disabled    orc-managed
+
+── RECENT AGENT RUNS ─────────────────────────────────────────────────────────
+  2026-09-21  fix-flaky-test        work        ✓ succeeded
+  2026-09-20  migrate-schema        client-acct ✓ succeeded
+
+orc config for themes/options  ·  orc --help for every command
+```
 
 ## Architecture: two repos, on purpose
 
@@ -100,7 +138,19 @@ orc dashboard
 
 Full command reference: [USAGE.md](USAGE.md). Third-party skills worth adding alongside it: [ECOSYSTEM.md](ECOSYSTEM.md).
 
-Bare `orc` (no arguments) drops into an interactive menu covering all of the above — pick by number, or just type part of an option's name (`search`, `dash`, `graph`).
+Bare `orc` (no arguments) drops into an interactive menu covering all of the above — pick by number, or just type part of an option's name (`search`, `dash`, `graph`) and it resolves the same way a shell's tab-completion would; an ambiguous substring lists the candidates instead of guessing.
+
+## FAQ
+
+**Does this touch Anthropic's API or my subscription?** No. Every command reads/writes local files only. The one exception is `orc sync`, which talks to *your own* git remote — nothing ever leaves your machine toward Anthropic.
+
+**What happens if I run this under the wrong account?** Nothing leaks by construction: `orc identity set <label>` is a label you set per machine, not a credential, and it's stored in your private data repo — never in this public one. Memory, skills, and agent-log entries all live under `ORC_DATA_DIR`, so switching Claude accounts on the same machine doesn't touch `orc`'s state at all; only switching *machines* needs `orc sync`.
+
+**Will this conflict with Claude Code's own memory/skills?** No — `orc memory sync` *reads* `~/.claude/projects/*/memory/*.md` and mirrors it into a separate, topic-keyed store; it never rewrites Claude Code's own files. `orc skill adopt` moves a skill's actual files into your data repo and leaves a symlink behind, so Claude Code still sees it in the same place.
+
+**Do I need a GitHub account or a paid plan?** No. `ORC_DATA_DIR` can be any git repo — GitHub, GitLab, a self-hosted server, or even just a local bare repo for offline use between two machines you can `scp` between.
+
+**Is the pixel-art cat load-bearing?** Purely cosmetic — `orc config set banner false` turns it off, and it's already skipped automatically in piped/non-interactive output.
 
 ## Using it from inside Claude Code
 

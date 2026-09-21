@@ -11,6 +11,7 @@ All notable changes to this project are documented here. Format loosely follows 
 - **`orc version`** — version, install/data paths, and the startup banner.
 - **Startup banner** — an original pixel-art cat (Unicode half-block trick, fixed brand colors) with a tail that wags for ~1s in a live terminal and settles into a curled rest pose. Skipped entirely in plain-text/piped output, where it would be meaningless. Toggle with `orc config set banner false`.
 - **`ECOSYSTEM.md`** — a survey of widely-adopted third-party Claude Code skills worth adopting via `orc skill install`, with star counts verified against the GitHub API rather than blog posts.
+- **README mascot** — `assets/mascot.svg`/`mascot-animated.svg`, pixel-perfect SVG renders of the actual startup banner's cat (same grid data as `banner.py`, including a real tail-wag animation via SMIL), plus a "What it looks like" dashboard example and an FAQ section.
 
 ### Changed
 - **Search results are now relevance-ranked** rather than filesystem-ordered: name matches score above description matches, which score above body-frequency matches (capped, so a repeated word can't outrank a real title match). Ties break on name so ordering is stable across machines. Previously, searching `verification` returned 59 hits with the memories actually *named* `verification-*` at positions 21 and 23.
