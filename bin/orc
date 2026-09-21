@@ -7,5 +7,7 @@
 #   export PATH="$HOME/path/to/claude-orchestrator/bin:$PATH"
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/../src"
-exec python3 -m orc "$@"
+# Deliberately does NOT cd into src/ — `orc memory here` resolves memories
+# against the user's current directory, so the launcher must preserve cwd.
+# PYTHONPATH gets the interpreter to the package without moving us.
+exec env PYTHONPATH="$SCRIPT_DIR/../src${PYTHONPATH:+:$PYTHONPATH}" python3 -m orc "$@"

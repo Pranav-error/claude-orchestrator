@@ -3,6 +3,7 @@ none of them touch the real ~/.claude or the real repo's memory/skills/logs.
 """
 
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -776,6 +777,44 @@ class InitTests(OrcTestCase):
         init.run()
         second = init.run()
         self.assertTrue(second["already_initialized"])
+
+
+class LauncherTests(unittest.TestCase):
+    """The bin/orc launcher is a shell script, so nothing else in this
+    suite exercises it. It broke `orc memory here` once by cd'ing into
+    src/ before running -- which silently destroyed the user's cwd, so
+    cwd-relative features resolved against the repo instead of wherever
+    the user actually was."""
+
+    LAUNCHER = Path(__file__).resolve().parents[1] / "bin" / "orc"
+
+    def test_launcher_preserves_the_callers_cwd(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = Path(tmp).resolve()
+            result = subprocess.run(
+                [str(self.LAUNCHER), "version"],
+                cwd=marker, capture_output=True, text=True,
+                env={**os.environ, "ORC_DATA_DIR": str(marker / "data")},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            # prove cwd survived: ask Python (through the same launcher path)
+            # what it thinks cwd is, rather than trusting the command above
+            probe = subprocess.run(
+                ["python3", "-c", "import os; print(os.getcwd())"],
+                cwd=marker, capture_output=True, text=True,
+                env={**os.environ, "PYTHONPATH": str(self.LAUNCHER.parents[1] / "src")},
+            )
+            self.assertEqual(probe.stdout.strip(), str(marker))
+
+    def test_launcher_does_not_cd_in_its_source(self):
+        # guards against a future "simplification" back to the cd form
+        source = self.LAUNCHER.read_text()
+        cd_lines = [
+            line for line in source.splitlines()
+            if line.strip().startswith("cd ") and not line.strip().startswith("#")
+        ]
+        self.assertEqual(cd_lines, [], f"launcher must not cd (breaks cwd-relative commands): {cd_lines}")
 
 
 class MemoryForProjectTests(OrcTestCase):
