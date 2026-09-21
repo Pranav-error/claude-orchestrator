@@ -114,7 +114,10 @@ def _link_targets(text: str) -> list[str]:
 def _all_files_by_stem() -> dict:
     if not config.MEMORY_DIR.exists():
         return {}
-    return {f.stem: f for f in config.MEMORY_DIR.rglob("*.md")}
+    # Sorted so the graph, and anything derived from it, has a stable order.
+    # rglob returns directory order, which differs between filesystems, so an
+    # ambiguous query would otherwise number its matches differently per machine.
+    return {f.stem: f for f in sorted(config.MEMORY_DIR.rglob("*.md"))}
 
 
 def _resolve_stem(target_slug: str, by_stem: dict) -> list[str]:
