@@ -778,6 +778,179 @@ class InitTests(OrcTestCase):
         self.assertTrue(second["already_initialized"])
 
 
+class MemoryForProjectTests(OrcTestCase):
+    def _mirror_from(self, project_dir: str, filename: str, name: str):
+        """Write a source memory under a project dir named the way Claude
+        Code encodes it (slashes -> dashes), then sync so the mirrored copy
+        carries that source_project in its frontmatter."""
+        self.write_memory_file(project_dir, filename, name, "project", f"body for {name}")
+
+    def test_matches_memories_from_the_given_directory(self):
+        target = self.root / "repo-one"
+        target.mkdir()
+        self._mirror_from(memory.encode_project_dir(target), "a.md", "Repo One Note")
+        memory.sync()
+
+        hits = memory.for_project(target)
+        self.assertEqual([h["name"] for h in hits], ["Repo One Note"])
+
+    def test_does_not_match_an_unrelated_directory(self):
+        target = self.root / "repo-one"
+        other = self.root / "repo-two"
+        target.mkdir()
+        other.mkdir()
+        self._mirror_from(memory.encode_project_dir(target), "a.md", "Repo One Note")
+        memory.sync()
+
+        self.assertEqual(memory.for_project(other), [])
+
+    def test_matches_subdirectories_of_the_project(self):
+        # running Claude from repo/backend creates a separate project dir,
+        # but it's still that repo's work and should surface there
+        repo = self.root / "repo-one"
+        sub = repo / "backend"
+        sub.mkdir(parents=True)
+        self._mirror_from(memory.encode_project_dir(sub), "a.md", "Backend Note")
+        memory.sync()
+
+        hits = memory.for_project(repo)
+        self.assertEqual([h["name"] for h in hits], ["Backend Note"])
+
+    def test_does_not_match_a_sibling_with_a_shared_name_prefix(self):
+        # repo-one-extra must not match a query for repo-one
+        repo = self.root / "repo-one"
+        sibling = self.root / "repo-one-extra"
+        repo.mkdir()
+        sibling.mkdir()
+        self._mirror_from(memory.encode_project_dir(sibling), "a.md", "Sibling Note")
+        memory.sync()
+
+        self.assertEqual(memory.for_project(repo), [])
+
+    def test_respects_limit(self):
+        repo = self.root / "repo-one"
+        repo.mkdir()
+        encoded = memory.encode_project_dir(repo)
+        for i in range(5):
+            self._mirror_from(encoded, f"n{i}.md", f"Note {i}")
+        memory.sync()
+
+        self.assertEqual(len(memory.for_project(repo, limit=2)), 2)
+
+
+class MemoryGraphTests(OrcTestCase):
+    def _linked_set(self):
+        # alpha <- beta, alpha <- gamma, beta -> alpha  => alpha is the hub
+        self.write_memory_file("proj-a", "a.md", "Alpha", "project", "hub, no outgoing")
+        self.write_memory_file("proj-a", "b.md", "Beta", "project", "see [[alpha]]")
+        self.write_memory_file("proj-a", "c.md", "Gamma", "project", "also see [[alpha]]")
+        memory.sync()
+
+    def test_hub_ranking_orders_by_total_links(self):
+        self._linked_set()
+        ranking = memory.hub_ranking()
+        self.assertEqual(ranking[0]["name"], "Alpha")
+        self.assertEqual(ranking[0]["incoming"], 2)
+        self.assertEqual(ranking[0]["outgoing"], 0)
+
+    def test_hub_ranking_excludes_unlinked_memories(self):
+        self._linked_set()
+        self.write_memory_file("proj-a", "lonely.md", "Lonely", "project", "nothing links here")
+        memory.sync()
+        names = [r["name"] for r in memory.hub_ranking()]
+        self.assertNotIn("Lonely", names)
+
+    def test_hub_ranking_respects_top_n(self):
+        self._linked_set()
+        self.assertEqual(len(memory.hub_ranking(top_n=1)), 1)
+
+    def test_hub_ranking_is_empty_with_no_links(self):
+        self.write_memory_file("proj-a", "solo.md", "Solo", "project", "no links at all")
+        memory.sync()
+        self.assertEqual(memory.hub_ranking(), [])
+
+    def test_render_graph_shows_names_and_counts(self):
+        self._linked_set()
+        text = dashboard.render_memory_graph(color=False)
+        self.assertIn("Alpha", text)
+        self.assertIn("2 links", text)
+
+    def test_render_graph_handles_no_links_gracefully(self):
+        text = dashboard.render_memory_graph(color=False)
+        self.assertIn("no linked memories yet", text)
+
+    def test_render_graph_disambiguates_duplicate_display_names(self):
+        # two memories that sync gave the same display name but different
+        # stems must not render as two identical-looking rows
+        self.write_memory_file("proj-a", "dup.md", "Dup", "project", "body A, see [[target]]")
+        self.write_memory_file("proj-b", "dup.md", "Dup", "project", "body B, see [[target]]")
+        self.write_memory_file("proj-a", "t.md", "Target", "project", "target body")
+        memory.sync()
+        text = dashboard.render_memory_graph(color=False)
+        graph_lines = [l for l in text.splitlines() if "links (" in l]
+        labels = [l.split("  ")[1].strip() for l in graph_lines]
+        self.assertEqual(len(labels), len(set(labels)), f"duplicate row labels: {labels}")
+
+    def test_render_graph_color_vs_plain(self):
+        self._linked_set()
+        self.assertIn("\033[", dashboard.render_memory_graph(color=True))
+        self.assertNotIn("\033[", dashboard.render_memory_graph(color=False))
+
+
+class ResolveChoiceTests(OrcTestCase):
+    """Pure-function tests for menu.resolve_choice, the type-ahead
+    alternative to typing a number -- no input() to mock."""
+
+    def test_number_still_works(self):
+        idx, ambiguous = menu.resolve_choice("1")
+        self.assertEqual(idx, 0)
+        self.assertIsNone(ambiguous)
+
+    def test_out_of_range_number_is_no_match(self):
+        idx, ambiguous = menu.resolve_choice("9999")
+        self.assertIsNone(idx)
+        self.assertIsNone(ambiguous)
+
+    def test_zero_and_quit_words_return_quit_sentinel(self):
+        for text in ["0", "q", "Q", "quit", "exit"]:
+            idx, _ = menu.resolve_choice(text)
+            self.assertIs(idx, menu.QUIT, f"{text!r} should resolve to QUIT")
+
+    def test_unique_substring_of_a_label_matches(self):
+        idx, ambiguous = menu.resolve_choice("search")
+        self.assertIsNone(ambiguous)
+        self.assertEqual(menu.MENU[idx][0], "Search memory")
+
+    def test_matching_is_case_insensitive(self):
+        idx, _ = menu.resolve_choice("SEARCH")
+        self.assertEqual(menu.MENU[idx][0], "Search memory")
+
+    def test_ambiguous_substring_returns_all_matching_labels(self):
+        idx, ambiguous = menu.resolve_choice("sync")
+        self.assertIsNone(idx)
+        self.assertIsNotNone(ambiguous)
+        self.assertIn("Sync memory", ambiguous)
+        self.assertIn("Sync (push/pull to other machines)", ambiguous)
+
+    def test_exact_label_match_wins_over_ambiguity(self):
+        # if a typed string exactly equals one label (case-insensitively),
+        # that should resolve directly even if it's also a substring of
+        # other labels
+        idx, ambiguous = menu.resolve_choice("dashboard")
+        self.assertIsNone(ambiguous)
+        self.assertEqual(menu.MENU[idx][0], "Dashboard")
+
+    def test_no_match_at_all(self):
+        idx, ambiguous = menu.resolve_choice("xyznotarealoption")
+        self.assertIsNone(idx)
+        self.assertIsNone(ambiguous)
+
+    def test_empty_input_is_no_match_not_quit(self):
+        idx, ambiguous = menu.resolve_choice("")
+        self.assertIsNone(idx)
+        self.assertIsNone(ambiguous)
+
+
 class MenuTests(OrcTestCase):
     def test_render_contains_every_menu_label(self):
         text = menu.render_menu_screen(color=False)

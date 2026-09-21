@@ -12,7 +12,7 @@ import sys
 import webbrowser
 from datetime import datetime, timezone
 
-from . import agentlog, config, identity, settings as settings_mod, skills, sync, usage
+from . import agentlog, config, identity, memory, settings as settings_mod, skills, sync, usage
 
 RESET = "\033[0m"
 BOLD = "\033[1m"
@@ -173,6 +173,62 @@ def render_terminal(color: bool = None, theme_name: str = None, usage_days: int 
         lines.append(f"  {c(DIM, ts)}  {outcome}  {r['task']}")
     lines.append("")
     lines.append(c(DIM, "orc config for themes/options  ·  orc --help for every command"))
+
+    return "\n".join(lines)
+
+
+def render_memory_graph(top_n: int = 10, color: bool = None, theme_name: str = None) -> str:
+    """The most-connected memories ([[link]] count in + out), as colored
+    bars — the same visual language as the usage chart in render_terminal.
+    Real graph data (memory.hub_ranking), not a mockup."""
+    color = _resolve_color(color)
+    th = settings_mod.theme(theme_name)
+    gradient = th["gradient"]
+
+    def c(code, text):
+        return f"{code}{text}{RESET}" if (color and code) else text
+
+    def grad(ratio: float) -> str:
+        idx = min(len(gradient) - 1, int(ratio * len(gradient)))
+        code = gradient[idx]
+        return f"\033[38;5;{code}m" if code != "" else ""
+
+    width = _term_width()
+    ranking = memory.hub_ranking(top_n=top_n)
+
+    def rule(label: str) -> str:
+        head = f"── {label} "
+        return c(DIM, head + "─" * max(0, width - len(head)))
+
+    lines = [rule(f"MEMORY GRAPH · top {top_n} most-connected")]
+
+    if not ranking:
+        lines.append(c(DIM, "  no linked memories yet — add [[wiki-links]] between memories to build a graph"))
+        return "\n".join(lines)
+
+    # Two memories can share a display name (a name collision that sync
+    # disambiguated into `slug--project.md`). Showing both as the same
+    # label reads like a duplicate row, so fall back to the unique stem
+    # for exactly those.
+    name_counts = {}
+    for r in ranking:
+        name_counts[r["name"]] = name_counts.get(r["name"], 0) + 1
+    labels = {
+        r["stem"]: (r["stem"] if name_counts[r["name"]] > 1 else r["name"])
+        for r in ranking
+    }
+
+    max_total = max(r["total"] for r in ranking)
+    name_w = min(44, max(len(labels[r["stem"]]) for r in ranking))
+    bar_width = min(24, max(8, width - name_w - 28))
+
+    for r in ranking:
+        ratio = r["total"] / max_total
+        filled = max(1, int(bar_width * ratio))
+        bar = "█" * filled + "░" * (bar_width - filled)
+        name = labels[r["stem"]][:name_w].ljust(name_w)
+        detail = f"{r['total']} links ({r['incoming']} in / {r['outgoing']} out)"
+        lines.append(f"  {name}  {c(grad(ratio), bar)}  {c(DIM, detail)}")
 
     return "\n".join(lines)
 

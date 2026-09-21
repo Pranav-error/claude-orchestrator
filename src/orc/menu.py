@@ -69,6 +69,22 @@ def search_memory():
             print(f"  {h['description']}")
 
 
+def memory_here():
+    _header("Memories from this directory")
+    hits = memory.for_project()
+    if not hits:
+        print("no memories recorded from this directory")
+        return
+    for h in hits:
+        print(f"  [{h['type']}] {h['name']}")
+        if h["description"]:
+            print(f"    {h['description'][:100]}")
+
+
+def memory_graph():
+    print("\n" + dashboard.render_memory_graph())
+
+
 def memory_links():
     _header("Memory links")
     query = input("Show links for: ").strip()
@@ -229,6 +245,8 @@ MENU = [
     ("Switch account", switch_identity),
     ("Search memory", search_memory),
     ("Show/add memory links", memory_links),
+    ("Memory graph (most-connected)", memory_graph),
+    ("Memories from this directory", memory_here),
     ("Sync memory", sync_memory),
     ("Manage skills", manage_skills),
     ("Usage report", usage_report),
@@ -281,6 +299,41 @@ def render_menu_screen(color: bool = None) -> str:
     return "\n".join(lines)
 
 
+QUIT = object()  # sentinel distinct from any real menu index
+
+
+def resolve_choice(text: str):
+    """Pure — no I/O — so it's testable without mocking input(). Returns
+    (index, None) on a clean match, (QUIT, None) to quit, (None, None) for
+    no match at all, or (None, [labels]) when a typed name matches more
+    than one item and needs a more specific word.
+
+    Accepts a number (the original interface, unchanged) OR any substring
+    of an item's label, case-insensitive — typing "search" or "dash" is
+    faster than scanning the list for which digit that was."""
+    text = text.strip()
+    if not text:
+        return None, None
+    if text == "0" or text.lower() in ("q", "quit", "exit"):
+        return QUIT, None
+    if text.isdigit():
+        n = int(text)
+        if 1 <= n <= len(MENU):
+            return n - 1, None
+        return None, None
+
+    text_l = text.lower()
+    exact = [i for i, (label, _) in enumerate(MENU) if label.lower() == text_l]
+    if exact:
+        return exact[0], None
+    matches = [i for i, (label, _) in enumerate(MENU) if text_l in label.lower()]
+    if len(matches) == 1:
+        return matches[0], None
+    if len(matches) > 1:
+        return None, [MENU[i][0] for i in matches]
+    return None, None
+
+
 def run():
     if banner.enabled():
         banner.render_animated()
@@ -289,14 +342,14 @@ def run():
         print("\n" + render_menu_screen())
 
         choice = input("\n> ").strip()
-        if choice == "0" or choice.lower() in ("q", "quit", "exit"):
+        idx, ambiguous = resolve_choice(choice)
+        if idx is QUIT:
             break
-        try:
-            idx = int(choice) - 1
-            if idx < 0 or idx >= len(MENU):
-                raise ValueError
-        except ValueError:
-            print("pick a number from the list")
+        if idx is None:
+            if ambiguous:
+                print(f"matches more than one: {', '.join(ambiguous)} — try a more specific word")
+            else:
+                print("pick a number, or type part of an option's name")
             continue
 
         _, action = MENU[idx]

@@ -10,6 +10,7 @@ so re-running sync never creates copies of something already imported.
 import hashlib
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 
 from . import config, identity
 
@@ -174,6 +175,87 @@ def _find_one(query: str, graph: dict) -> str:
     if len(matches) > 1:
         raise AmbiguousMemoryQuery(query, matches)
     return matches[0]
+
+
+def encode_project_dir(path) -> str:
+    """Claude Code names each project dir after the cwd with every '/'
+    replaced by '-'. Mirrored memories record that encoded name in their
+    `source_project` frontmatter, so encoding a path the same way is how
+    we match memories to a directory."""
+    return str(Path(path).resolve()).replace("/", "-")
+
+
+def _candidate_subdir_encodings(target: Path) -> set[str]:
+    """Encodings of `target` and every directory beneath it that actually
+    exists on disk.
+
+    Why not just string-prefix match the encoded names: the encoding is
+    lossy. A literal '-' in a directory name and an encoded '/' are the
+    same character afterwards, so '-repo-one-extra' is simultaneously a
+    valid encoding of 'repo-one-extra' (a SIBLING of repo-one) and of
+    'repo/one/extra' (a child). No amount of string manipulation can tell
+    those apart. Walking the real filesystem can — we only ever match
+    encodings of paths that genuinely exist under the target.
+    """
+    encodings = {encode_project_dir(target)}
+    try:
+        for sub in target.rglob("*"):
+            if sub.is_dir():
+                encodings.add(encode_project_dir(sub))
+    except OSError:
+        pass
+    return encodings
+
+
+def for_project(path=None, limit: int = 10) -> list[dict]:
+    """Memories that came from a given directory (default: cwd), most
+    recently mirrored first. Also matches memories from SUBdirectories of
+    it, since running Claude from a repo's subfolder creates a separate
+    project dir but is still that project's work."""
+    if not config.MEMORY_DIR.exists():
+        return []
+
+    target = Path(path or Path.cwd()).resolve()
+    valid = _candidate_subdir_encodings(target)
+    hits = []
+    for f in sorted(config.MEMORY_DIR.rglob("*.md")):
+        meta, _ = parse_frontmatter(f.read_text())
+        source = meta.get("source_project", "")
+        if not source:
+            continue
+        if source in valid:
+            hits.append({
+                "stem": f.stem,
+                "name": meta.get("name", f.stem),
+                "description": meta.get("description", ""),
+                "type": meta.get("type", "uncategorized"),
+                "mirrored_at": meta.get("mirrored_at", ""),
+            })
+
+    hits.sort(key=lambda h: h["mirrored_at"], reverse=True)
+    return hits[:limit]
+
+
+def hub_ranking(top_n: int = 10) -> list[dict]:
+    """The most-connected memories — [[link]] count in + out — as a ranked
+    list. Pure data (no rendering); dashboard.render_memory_graph turns
+    this into the colored terminal view. Memories with zero links are
+    excluded: a hub ranking of unconnected files isn't a ranking."""
+    graph = build_link_graph()
+    ranked = []
+    for stem, data in graph.items():
+        total = len(data["outgoing"]) + len(data["incoming"])
+        if total == 0:
+            continue
+        ranked.append({
+            "stem": stem,
+            "name": data["name"],
+            "incoming": len(data["incoming"]),
+            "outgoing": len(data["outgoing"]),
+            "total": total,
+        })
+    ranked.sort(key=lambda r: (-r["total"], r["name"]))
+    return ranked[:top_n]
 
 
 def links_for(query: str) -> dict:

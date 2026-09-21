@@ -42,6 +42,22 @@ def cmd_memory_search(args):
             print(f"  {h['description']}")
 
 
+def cmd_memory_here(args):
+    hits = memory.for_project(limit=args.limit)
+    if not hits:
+        print("no memories recorded from this directory")
+        return
+    print(f"{len(hits)} memories from this project:\n")
+    for h in hits:
+        print(f"  [{h['type']}] {h['name']}")
+        if h["description"]:
+            print(f"    {h['description'][:100]}")
+
+
+def cmd_memory_graph(args):
+    print(dashboard.render_memory_graph(top_n=args.top))
+
+
 def cmd_memory_links(args):
     try:
         data = memory.links_for(args.query)
@@ -261,6 +277,14 @@ def build_parser():
     mem_links = mem_sub.add_parser("links", help="show what a memory links to / is linked from")
     mem_links.add_argument("query")
     mem_links.set_defaults(func=cmd_memory_links)
+
+    mem_here = mem_sub.add_parser("here", help="memories recorded from the current directory")
+    mem_here.add_argument("--limit", type=int, default=10)
+    mem_here.set_defaults(func=cmd_memory_here)
+
+    mem_graph = mem_sub.add_parser("graph", help="visualize the most-connected memories")
+    mem_graph.add_argument("--top", type=int, default=10, help="how many to show (default 10)")
+    mem_graph.set_defaults(func=cmd_memory_graph)
 
     mem_link = mem_sub.add_parser("link", help="add a [[link]] from one memory to another")
     mem_link.add_argument("from_", metavar="from")
