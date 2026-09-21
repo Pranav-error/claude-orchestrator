@@ -34,8 +34,20 @@ text files.
 ```bash
 orc
 ```
-Opens a numbered menu (works from any directory once `bin/` is on
-`PATH`). Pick a number, answer a prompt or two.
+Opens the menu (works from any directory once `bin/` is on `PATH`).
+Pick an item by number — or just type part of its name, which is usually
+faster than scanning for the right digit:
+
+```
+> search        # -> Search memory
+> dash          # -> Dashboard
+> graph         # -> Memory graph
+> 0  /  q       # quit
+```
+
+Matching is case-insensitive. An exact label match always wins; a
+substring that matches several options lists them rather than guessing
+(typing `sync` reports both "Sync memory" and "Sync (push/pull…)").
 
 ### 2. Flag commands — best for scripts, one-liners, or from inside Claude's `!` prompt
 
@@ -49,6 +61,8 @@ Opens a numbered menu (works from any directory once `bin/` is on
 | `orc memory sync` | Pull any new memory files from all your Claude Code projects into the canonical store |
 | `orc memory links "<name>"` | Show what a memory links to / is linked from (`[[wiki-links]]`) |
 | `orc memory link "<from>" "<to>"` | Add a link between two memories |
+| `orc memory graph [--top N]` | Rank memories by link count — which ones are hubs |
+| `orc memory here [--limit N]` | Memories belonging to the current project |
 | `orc usage report --by day\|project\|model\|identity` | Real token usage, read straight from Claude Code's own transcripts |
 | `orc skill list` | Every skill under `~/.claude/skills/`, managed or not, enabled or not |
 | `orc skill adopt <name> [--source <url>]` | Bring an already-installed skill under registry control |
@@ -168,6 +182,75 @@ auth-retry-logic
 
 `orc memory link "<from>" "<to>"` adds a link by hand (idempotent — a
 repeat call reports "already linked" instead of duplicating it).
+
+When a query matches several memories, you get a numbered list rather
+than a guess — and in the interactive menu, one you can pick from
+directly:
+
+```
+$ orc memory links "pranav"
+error: 'pranav' is ambiguous — 11 matches:
+  1. user-profile-r-sai-pranav
+  2. user-pranav-and-kartik
+  ...
+```
+
+**Search is relevance-ranked.** A hit in the title means the memory is
+*about* that term; a hit buried in the body might be an aside. Name
+matches score above description matches, which score above body
+frequency (capped, so a word repeated 40 times can't outrank a real
+title match). Ties break on name, so ordering is identical on every
+machine.
+
+This is deliberately a weighted count rather than a real search index
+(SQLite FTS5 + BM25). For a few hundred markdown files the ranking
+quality is indistinguishable, and an index would add a schema to
+migrate, keep in sync on every edit, and repair when it drifts — for a
+tool whose whole premise is that your data is plain files you can
+`cat` and `grep` without it.
+
+### Memory graph
+
+`orc memory graph` ranks memories by how connected they are — total
+`[[link]]` count, in plus out — so the hubs of your notes are obvious
+at a glance. Memories with no links are excluded; a hub ranking of
+unconnected files isn't a ranking.
+
+```
+$ orc memory graph --top 5
+── MEMORY GRAPH · top 5 most-connected ───────────────────────────────
+  contribution-state          ████████  26 links (11 in / 15 out)
+  contribution-strategy       ████████  26 links (9 in / 17 out)
+  pg-family-state             ██████░░  20 links (10 in / 10 out)
+  ai-use-policies             █████░░░  17 links (11 in / 6 out)
+  jesper-direction            █████░░░  17 links (9 in / 8 out)
+```
+
+Two memories can end up sharing a display name (a collision that sync
+resolved into `slug--project.md`); those rows fall back to their unique
+stem so they don't read as duplicates.
+
+### Memories for the current project
+
+`orc memory here` shows what you've recorded while working in the
+project you're standing in — useful when returning to a repo after a
+gap.
+
+```
+$ cd ~/code/my-app/backend
+$ orc memory here --limit 3
+3 memories from this project:
+
+  [project] deploy-runbook
+    The exact promote/rollback sequence, and the one step that's easy to skip.
+  [feedback] pr-review-conventions
+    ...
+```
+
+It anchors to the enclosing **repo root** (`.git`/`.hg`/`.svn`) rather
+than the literal working directory, so running it from
+`my-app/backend/src` still surfaces the whole repo's memories. Being
+deeper inside a project should show you more of its context, not less.
 
 ### Identity
 
@@ -317,11 +400,16 @@ theme = amber
 icons = True
 usage_days = 14
 color = auto
+banner = True
 
 themes: amber, ocean, sunset, mono
 $ orc config set theme ocean
 theme = ocean
 ```
+
+The interactive Preferences screen validates the key before asking for
+a value, and shows what that key accepts (`theme` offers the theme
+list, `icons`/`banner` offer true/false, and so on).
 
 Any dashboard flag (`--theme`, `--color`, `--days`) overrides the
 saved preference for that one run without touching the saved config.
@@ -329,28 +417,32 @@ saved preference for that one run without touching the saved config.
 ### Startup banner
 
 Like Claude Code's own colored icon-and-version header, or Gemini
-CLI's compact ASCII icon — since this tool is literally named `orc`,
-the mark is a small green orc face (pixel art, using the Unicode
-half-block trick for roughly square pixels) rather than an abstract
-shape. Fixed brand colors, independent of your dashboard theme — a
-logo stays recognizable the way Claude's icon is always orange
-regardless of your terminal theme. Shown by `orc` (the interactive
-menu) and `orc version`; only renders in color mode (a real terminal,
-or `--color always`) — in plain-text/piped output it's skipped
-entirely rather than shown as meaningless ASCII noise.
+CLI's compact ASCII icon: a small pixel-art cat (drawn with the Unicode
+half-block trick for roughly square pixels), whose tail wags for about
+a second before settling into a curled rest pose. Fixed brand colors,
+independent of your dashboard theme — a logo should stay recognizable
+the way Claude's icon is always orange regardless of your terminal
+theme.
+
+Shown by `orc` (the interactive menu) and `orc version`. The animation
+only runs in a real interactive terminal; piped or captured output gets
+the static text, since a cursor-redraw animation can't render there.
+`Ctrl+C` during it settles the pose rather than interrupting the
+program.
 
 ```
 $ orc version
-[green pixel-art orc face]  claude-orchestrator
-[with red eyes and          v0.1.0 · orc
- cream tusks]               a personal control plane for Claude Code
+[pixel-art cat]  claude-orchestrator
+[tail wagging]   v0.1.0 · orc
+                 a personal control plane for Claude Code
 
 orc 0.1.0
 code:    /path/to/claude-orchestrator
 data:    /path/to/your/data/repo
 ```
 
-(Run it yourself to see the actual colors — this file can't render ANSI.)
+(Run it yourself to see the actual colors and motion — this file can't
+render ANSI.)
 
 Purely cosmetic — turn it off for a quieter start with
 `orc config set banner false`.

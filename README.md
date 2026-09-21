@@ -89,7 +89,7 @@ orc dashboard
 
 | | |
 |---|---|
-| **Memory** | `orc memory sync` mirrors Claude Code's scattered per-project memory into one topic-keyed, deduped store. `orc memory search`, `orc memory links`/`link` for `[[wiki-style]]` cross-references. |
+| **Memory** | `orc memory sync` mirrors Claude Code's scattered per-project memory into one topic-keyed, deduped store. `orc memory search` (relevance-ranked), `orc memory links`/`link` for `[[wiki-style]]` cross-references, `orc memory graph` to see which memories are hubs, `orc memory here` for the current project's memories. |
 | **Identity** | `orc identity set <label>` records which account is active on this machine right now — since Claude Code itself never does, and a filesystem never changes on an account swap on the same box (only a different *machine* needs `orc sync`). |
 | **Usage** | `orc usage report --by day\|project\|model\|identity` — real token counts read straight from Claude Code's own transcripts. Nothing tracked manually. |
 | **Skills** | `orc skill adopt/install/enable/disable` — takes custody of a skill (moves it into your data repo, symlinks it back), so hand-downloaded skills have a recorded source and travel with `orc sync` instead of needing manual reinstall per machine. |
@@ -98,9 +98,9 @@ orc dashboard
 | **Dashboard** | `orc dashboard` — a colored snapshot rendered directly in your terminal (boxed header, usage bar chart, skills, recent runs). No browser, no server. `--html` opts into a shareable file instead. |
 | **Config** | `orc config show/set` — theme (amber/ocean/sunset/mono), icons on/off, usage window, forced color, startup banner on/off. |
 
-Full command reference: [USAGE.md](USAGE.md).
+Full command reference: [USAGE.md](USAGE.md). Third-party skills worth adding alongside it: [ECOSYSTEM.md](ECOSYSTEM.md).
 
-Bare `orc` (no arguments) drops into a numbered interactive menu covering all of the above — useful when you don't want to remember flag names.
+Bare `orc` (no arguments) drops into an interactive menu covering all of the above — pick by number, or just type part of an option's name (`search`, `dash`, `graph`).
 
 ## Using it from inside Claude Code
 
@@ -128,7 +128,7 @@ To make sync automatic at the start/end of every Claude Code session (any accoun
 python3 -m unittest discover -s tests -v
 ```
 
-64 tests, stdlib `unittest` only, fully isolated via tmp-dir path overrides — none of them touch your real `~/.claude` or your data repo. Includes a real two-machine push/pull simulation over a local bare git remote. Runs automatically on every push via GitHub Actions (badge above).
+125 tests, stdlib `unittest` only, fully isolated via tmp-dir path overrides — none of them touch your real `~/.claude` or your data repo. Includes a real two-machine push/pull simulation over a local bare git remote. Runs automatically on every push across Python 3.10–3.13 via GitHub Actions (badge above).
 
 ## Releases & versioning
 
