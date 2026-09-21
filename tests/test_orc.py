@@ -166,6 +166,96 @@ class MemoryTests(OrcTestCase):
         self.assertEqual(hits[0]["name"], "Alpha")
         self.assertEqual(memory.search("nonexistent_zzz"), [])
 
+    def test_search_ranks_name_matches_above_body_only_matches(self):
+        """Regression test for a real ranking failure: searching
+        'verification' returned 59 hits with the memories actually NAMED
+        verification-* at positions 21 and 23, behind unrelated files that
+        merely mentioned the word and sorted earlier alphabetically."""
+        # body-only match, but sorts first alphabetically
+        self.write_memory_file("proj-a", "a.md", "Alpha Notes", "project",
+                               "incidentally mentions verification once")
+        # the memory actually about the topic
+        self.write_memory_file("proj-a", "z.md", "Verification Habits", "project",
+                               "unrelated body text")
+        memory.sync()
+
+        hits = memory.search("verification")
+        self.assertEqual(hits[0]["name"], "Verification Habits")
+
+    def test_search_ranks_description_matches_above_body_only(self):
+        d = config.CLAUDE_PROJECTS / "proj-a" / "memory"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "body.md").write_text(
+            "---\nname: Aaa Body\ndescription: nothing relevant\ntype: project\n---\n\nwidget appears here\n")
+        (d / "desc.md").write_text(
+            "---\nname: Zzz Desc\ndescription: all about widget\ntype: project\n---\n\nunrelated\n")
+        memory.sync()
+
+        hits = memory.search("widget")
+        self.assertEqual(hits[0]["name"], "Zzz Desc")
+
+    def test_search_body_frequency_breaks_ties_but_is_capped(self):
+        self.write_memory_file("proj-a", "few.md", "Few", "project", "token once")
+        self.write_memory_file("proj-a", "many.md", "Many", "project", " ".join(["token"] * 40))
+        memory.sync()
+
+        hits = memory.search("token")
+        self.assertEqual(hits[0]["name"], "Many")
+        # capped, so a 40x repeat can't outrank an actual name match
+        self.assertLessEqual(hits[0]["score"], memory._SCORE_NAME)
+
+    def test_search_results_are_stably_ordered_on_score_ties(self):
+        # equal scores must fall back to name order, not filesystem order,
+        # so results match across machines
+        self.write_memory_file("proj-a", "b.md", "Bravo", "project", "shared term")
+        self.write_memory_file("proj-a", "a.md", "Alpha", "project", "shared term")
+        memory.sync()
+
+        names = [h["name"] for h in memory.search("shared term")]
+        self.assertEqual(names, sorted(names))
+
+
+class ProjectRootTests(OrcTestCase):
+    def test_finds_repo_root_from_a_nested_directory(self):
+        repo = self.root / "myrepo"
+        nested = repo / "backend" / "src"
+        nested.mkdir(parents=True)
+        (repo / ".git").mkdir()
+
+        self.assertEqual(memory.project_root(nested), repo.resolve())
+
+    def test_returns_the_path_itself_when_no_repo_marker_exists(self):
+        plain = self.root / "not-a-repo"
+        plain.mkdir()
+        self.assertEqual(memory.project_root(plain), plain.resolve())
+
+    def test_for_project_from_a_subdirectory_finds_the_repos_memories(self):
+        """The real gap this closes: `orc memory here` run from
+        repo/backend found nothing, because memories were recorded at the
+        repo root and it only looked at that exact dir and below."""
+        repo = self.root / "myrepo"
+        sub = repo / "backend"
+        sub.mkdir(parents=True)
+        (repo / ".git").mkdir()
+
+        self.write_memory_file(memory.encode_project_dir(repo), "a.md", "Repo Note", "project", "body")
+        memory.sync()
+
+        hits = memory.for_project(sub)
+        self.assertEqual([h["name"] for h in hits], ["Repo Note"])
+
+    def test_for_project_still_ignores_an_unrelated_repo(self):
+        repo_a = self.root / "repo-a"
+        repo_b = self.root / "repo-b"
+        for r in (repo_a, repo_b):
+            r.mkdir()
+            (r / ".git").mkdir()
+
+        self.write_memory_file(memory.encode_project_dir(repo_b), "b.md", "B Note", "project", "body")
+        memory.sync()
+
+        self.assertEqual(memory.for_project(repo_a), [])
+
 
 class MemoryLinksTests(OrcTestCase):
     def test_outgoing_and_incoming_resolve_both_ways(self):

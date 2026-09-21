@@ -207,15 +207,38 @@ def _candidate_subdir_encodings(target: Path) -> set[str]:
     return encodings
 
 
+_PROJECT_ROOT_MARKERS = (".git", ".hg", ".svn")
+
+
+def project_root(path=None) -> Path:
+    """The repo root at or above `path`, or `path` itself if none is found.
+
+    Without this, `orc memory here` run from repo/backend/src found
+    nothing — it only looked at that exact directory and below, while the
+    memories were recorded at the repo root. Being deeper inside a project
+    should surface more of its context, not less. Borrowed from how
+    context-mode anchors session events to a project rather than to
+    whatever directory a command happened to run in.
+    """
+    start = Path(path or Path.cwd()).resolve()
+    for candidate in (start, *start.parents):
+        if any((candidate / marker).exists() for marker in _PROJECT_ROOT_MARKERS):
+            return candidate
+    return start
+
+
 def for_project(path=None, limit: int = 10) -> list[dict]:
-    """Memories that came from a given directory (default: cwd), most
-    recently mirrored first. Also matches memories from SUBdirectories of
-    it, since running Claude from a repo's subfolder creates a separate
-    project dir but is still that project's work."""
+    """Memories belonging to a given directory's project (default: cwd),
+    most recently mirrored first.
+
+    Anchors to the enclosing repo root, then matches that directory and
+    everything beneath it — so running this from anywhere inside a repo
+    surfaces the whole repo's memories, not just the current folder's.
+    """
     if not config.MEMORY_DIR.exists():
         return []
 
-    target = Path(path or Path.cwd()).resolve()
+    target = project_root(path)
     valid = _candidate_subdir_encodings(target)
     hits = []
     for f in sorted(config.MEMORY_DIR.rglob("*.md")):
@@ -287,7 +310,37 @@ def add_link(from_query: str, to_query: str) -> dict:
     return {"from": from_stem, "to": to_stem, "already_linked": False}
 
 
+# Relevance weights for search. A hit in the title means the memory is
+# ABOUT the term; a hit buried in the body might be an aside. Weighting
+# them equally is why searching "verification" used to bury the memories
+# actually named verification-* below unrelated alphabetically-earlier
+# files.
+#
+# Deliberately a simple weighted count rather than a real index
+# (SQLite FTS5 + BM25, which is what context-mode uses): for a few
+# hundred plain markdown files the ranking quality is indistinguishable,
+# and an index would add a schema to migrate, keep in sync on every
+# sync/edit, and repair when it drifts. This tool stays stdlib-only and
+# reads the files that are already on disk.
+_SCORE_NAME = 10
+_SCORE_DESCRIPTION = 4
+_SCORE_BODY_HIT = 1
+_SCORE_BODY_CAP = 5  # a term repeated 50x isn't 50x more relevant
+
+
+def _score(query_l: str, name: str, description: str, body: str) -> int:
+    score = 0
+    if query_l in name.lower():
+        score += _SCORE_NAME
+    if query_l in description.lower():
+        score += _SCORE_DESCRIPTION
+    score += min(body.lower().count(query_l), _SCORE_BODY_CAP) * _SCORE_BODY_HIT
+    return score
+
+
 def search(query: str) -> list[dict]:
+    """Full-text search, best matches first. Ties break on name so the
+    order is stable across machines (filesystem walk order is not)."""
     if not config.MEMORY_DIR.exists():
         return []
     query_l = query.lower()
@@ -296,10 +349,14 @@ def search(query: str) -> list[dict]:
         text = f.read_text()
         if query_l not in text.lower():
             continue
-        meta, _ = parse_frontmatter(text)
+        meta, body = parse_frontmatter(text)
+        name = meta.get("name", f.stem)
+        description = meta.get("description", "")
         hits.append({
             "path": str(f.relative_to(config.MEMORY_DIR)),
-            "name": meta.get("name", f.stem),
-            "description": meta.get("description", ""),
+            "name": name,
+            "description": description,
+            "score": _score(query_l, name, description, body),
         })
+    hits.sort(key=lambda h: (-h["score"], h["name"]))
     return hits
