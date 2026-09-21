@@ -4,6 +4,8 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-21
+
 ### Added
 - **`orc memory graph`** — ranks memories by `[[link]]` count (in + out) as colored bars, in the same visual language as the usage chart. Unlinked memories are excluded. Also available from the interactive menu.
 - **`orc memory here`** — surfaces memories recorded from the current project. Anchors to the enclosing repo root (`.git`/`.hg`/`.svn`), so running it anywhere inside a repo shows that whole repo's memories.
