@@ -336,6 +336,16 @@ Because the content lives in your data repo now, `orc sync` carries
 adopted skills across machines — no more re-downloading the same
 GitHub repo by hand on every new laptop.
 
+### Ecosystem
+
+`orc ecosystem` prints a survey of widely-adopted third-party Claude
+Code skills worth installing via `orc skill install` — real GitHub
+star/fork counts, licenses, and what each one does. It's the same
+content as [ECOSYSTEM.md](src/orc/data/ECOSYSTEM.md), shipped inside
+the package itself (not just this git checkout) so it's readable
+after a plain `pip install claude-orc` too. Also reachable from the
+interactive menu as "Browse third-party skills".
+
 ### Agent log
 
 Subagents are ephemeral — once one finishes there's no live state left

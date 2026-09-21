@@ -4,7 +4,7 @@ the `orc <command> <subcommand>` CLI uses — this is a friendlier front door,
 not a second implementation.
 """
 
-from . import agentlog, banner, dashboard, identity, memory, settings, skills, sync, usage
+from . import agentlog, banner, dashboard, ecosystem, identity, memory, settings, skills, sync, usage
 from .dashboard import BOLD, DIM, RESET, _resolve_color, _term_width, _visible_len
 
 
@@ -83,6 +83,10 @@ def memory_here():
 
 def memory_graph():
     print("\n" + dashboard.render_memory_graph())
+
+
+def browse_ecosystem():
+    print("\n" + ecosystem.text())
 
 
 def memory_links():
@@ -249,6 +253,7 @@ MENU = [
     ("Memories from this directory", memory_here),
     ("Sync memory", sync_memory),
     ("Manage skills", manage_skills),
+    ("Browse third-party skills (ecosystem)", browse_ecosystem),
     ("Usage report", usage_report),
     ("Log an agent run", log_agent_run),
     ("Sync (push/pull to other machines)", sync_repo),

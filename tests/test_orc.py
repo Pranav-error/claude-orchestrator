@@ -17,7 +17,7 @@ import copy
 import io
 import subprocess
 
-from orc import agentlog, banner, config, dashboard, identity, init, memory, menu, settings, skills, sync, usage  # noqa: E402
+from orc import agentlog, banner, config, dashboard, ecosystem, identity, init, memory, menu, settings, skills, sync, usage  # noqa: E402
 from orc.cli import main as cli_main  # noqa: E402
 
 
@@ -867,6 +867,21 @@ class InitTests(OrcTestCase):
         init.run()
         second = init.run()
         self.assertTrue(second["already_initialized"])
+
+
+class EcosystemTests(unittest.TestCase):
+    """Not an OrcTestCase — this reads packaged data, not the tmp-dir config."""
+
+    def test_text_returns_the_packaged_survey(self):
+        content = ecosystem.text()
+        self.assertIn("Claude Code ecosystem", content)
+        self.assertIn("caveman", content)
+
+    def test_cli_command_prints_it(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            cli_main(["ecosystem"])
+        self.assertIn("Claude Code ecosystem", buf.getvalue())
 
 
 class LauncherTests(unittest.TestCase):

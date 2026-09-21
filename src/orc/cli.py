@@ -2,7 +2,7 @@ import argparse
 import json
 import sys
 
-from . import __version__, agentlog, banner, config, dashboard, identity, init, memory, menu, settings, skills, sync, usage
+from . import __version__, agentlog, banner, config, dashboard, ecosystem, identity, init, memory, menu, settings, skills, sync, usage
 
 
 def cmd_identity_set(args):
@@ -236,6 +236,10 @@ def cmd_init(args):
     print('  export ORC_DATA_DIR="$HOME/my-private-orc-data"')
 
 
+def cmd_ecosystem(args):
+    print(ecosystem.text())
+
+
 def cmd_version(args):
     if banner.enabled():
         banner.render_animated()
@@ -254,6 +258,9 @@ def build_parser():
 
     init_p = sub.add_parser("init", help="bootstrap a private data repo (run this first, once)")
     init_p.set_defaults(func=cmd_init)
+
+    eco_p = sub.add_parser("ecosystem", help="print the survey of third-party Claude Code skills worth adopting")
+    eco_p.set_defaults(func=cmd_ecosystem)
 
     id_p = sub.add_parser("identity", help="which account is active on this machine")
     id_sub = id_p.add_subparsers(dest="identity_command", required=True)

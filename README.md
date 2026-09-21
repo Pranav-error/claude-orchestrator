@@ -136,7 +136,7 @@ orc dashboard
 | **Dashboard** | `orc dashboard` — a colored snapshot rendered directly in your terminal (boxed header, usage bar chart, skills, recent runs). No browser, no server. `--html` opts into a shareable file instead. |
 | **Config** | `orc config show/set` — theme (amber/ocean/sunset/mono), icons on/off, usage window, forced color, startup banner on/off. |
 
-Full command reference: [USAGE.md](USAGE.md). Third-party skills worth adding alongside it: [ECOSYSTEM.md](ECOSYSTEM.md).
+Full command reference: [USAGE.md](USAGE.md). Third-party skills worth adding alongside it: `orc ecosystem` (also in the interactive menu), or read it straight from the repo at [src/orc/data/ECOSYSTEM.md](src/orc/data/ECOSYSTEM.md).
 
 Bare `orc` (no arguments) drops into an interactive menu covering all of the above — pick by number, or just type part of an option's name (`search`, `dash`, `graph`) and it resolves the same way a shell's tab-completion would; an ambiguous substring lists the candidates instead of guessing.
 

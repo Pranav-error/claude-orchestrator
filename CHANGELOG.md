@@ -4,6 +4,9 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
+### Added
+- **`orc ecosystem`** — prints the `ECOSYSTEM.md` survey of third-party Claude Code skills directly from the CLI, also reachable from the interactive menu. The file itself moved to `src/orc/data/ECOSYSTEM.md` and now ships as package data, so it's readable after a plain `pip install claude-orc` too, not just from a git checkout.
+
 ## [0.2.0] - 2026-09-21
 
 ### Added
