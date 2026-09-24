@@ -172,6 +172,17 @@ To make sync automatic at the start/end of every Claude Code session (any accoun
 }
 ```
 
+## Roadmap
+
+Ideas under consideration for future releases, not yet built:
+
+- **`orc memory prune`** — flag memories that no longer match the live codebase (a referenced file was deleted, a function was renamed) so stale entries get surfaced instead of silently misleading a later session.
+- **`orc usage report --by session`** — break usage down per Claude Code session rather than just day/project/model/identity, useful for spotting one runaway conversation.
+- **Multi-remote sync** — let `ORC_DATA_DIR` push/pull against more than one remote (e.g. a personal GitLab mirror alongside GitHub) for redundancy.
+- **`orc dashboard --watch`** — a live-refreshing terminal dashboard instead of a one-shot snapshot.
+
+Opinions and PRs on any of these welcome — see [CHANGELOG.md](CHANGELOG.md) for what has already shipped.
+
 ## Testing
 
 ```bash
