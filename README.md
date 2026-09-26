@@ -129,7 +129,7 @@ orc dashboard
 |---|---|
 | **Memory** | `orc memory sync` mirrors Claude Code's scattered per-project memory into one topic-keyed, deduped store. `orc memory search` (relevance-ranked), `orc memory links`/`link` for `[[wiki-style]]` cross-references, `orc memory graph` to see which memories are hubs, `orc memory here` for the current project's memories. |
 | **Identity** | `orc identity set <label>` records which account is active on this machine right now — since Claude Code itself never does, and a filesystem never changes on an account swap on the same box (only a different *machine* needs `orc sync`). |
-| **Usage** | `orc usage report --by day\|project\|model\|identity` — real token counts read straight from Claude Code's own transcripts. Nothing tracked manually. |
+| **Usage** | `orc usage report --by day\|project\|model\|identity` — real token counts read straight from Claude Code's own transcripts, day/project/identity rows also listing which model(s) produced them. Nothing tracked manually. `orc status` gives just today's row plus the active identity, in one call. |
 | **Skills** | `orc skill adopt/install/enable/disable` — takes custody of a skill (moves it into your data repo, symlinks it back), so hand-downloaded skills have a recorded source and travel with `orc sync` instead of needing manual reinstall per machine. |
 | **Agent log** | `orc agent log/list` — append-only record of subagent runs, filterable by account/outcome/date. |
 | **Sync** | `orc sync push/pull/status` — wraps git for your private data repo. Refuses to pull over uncommitted local changes rather than guessing how to merge them. |

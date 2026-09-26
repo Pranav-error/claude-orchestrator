@@ -67,9 +67,16 @@ def _iter_usage_events():
 
 
 def report(since: str | None = None, group_by: str = "day"):
-    """group_by: 'day', 'project', 'model', or 'identity'."""
+    """group_by: 'day', 'project', 'model', or 'identity'.
+
+    Every bucket also carries `models`: the sorted list of distinct model
+    ids seen in it. Grouping by day or project mixes models together for
+    the token totals (a day can span a model switch), so this is the one
+    place that still surfaces which model(s) produced those tokens without
+    a second `--by model` call.
+    """
     cutoff = datetime.fromisoformat(since).replace(tzinfo=timezone.utc) if since else None
-    buckets = defaultdict(lambda: {"input": 0, "output": 0, "cache_write": 0, "cache_read": 0, "messages": 0})
+    buckets = defaultdict(lambda: {"input": 0, "output": 0, "cache_write": 0, "cache_read": 0, "messages": 0, "models": set()})
 
     for ev in _iter_usage_events():
         ts = datetime.fromisoformat(ev["timestamp"].replace("Z", "+00:00"))
@@ -77,7 +84,13 @@ def report(since: str | None = None, group_by: str = "day"):
             continue
 
         if group_by == "day":
-            key = ts.date().isoformat()
+            # Transcript timestamps are UTC. Bucketing by ts.date() directly
+            # would use the UTC calendar day, which silently disagrees with
+            # "today" for anyone west or east of UTC near midnight (e.g. it
+            # can show no row for today, hours into the local day, in any
+            # timezone ahead of UTC) — convert to local time first so "day"
+            # means the same day the user actually experienced.
+            key = ts.astimezone().date().isoformat()
         elif group_by == "project":
             key = ev["project"]
         elif group_by == "model":
@@ -93,5 +106,9 @@ def report(since: str | None = None, group_by: str = "day"):
         b["cache_write"] += ev["cache_creation_input_tokens"]
         b["cache_read"] += ev["cache_read_input_tokens"]
         b["messages"] += 1
+        b["models"].add(ev["model"])
+
+    for b in buckets.values():
+        b["models"] = sorted(b["models"])
 
     return dict(sorted(buckets.items()))

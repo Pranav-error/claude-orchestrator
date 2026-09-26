@@ -6,8 +6,10 @@ import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 import unittest.mock
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -512,9 +514,13 @@ class UsageTests(OrcTestCase):
         self.assertEqual(set(by_model.keys()), {"claude-opus-5", "claude-sonnet-5"})
 
     def test_report_since_filters_out_older_events(self):
+        # Noon UTC, not midnight: day-bucketing now converts to local time
+        # (see the timezone regression test below), and a midnight-UTC
+        # timestamp would land on the wrong side of the day boundary for a
+        # contributor running this west of UTC.
         self.write_transcript("proj-a", "s1", [
-            self._msg("2026-01-01T00:00:00Z", "claude-opus-5", 1, 1),
-            self._msg("2026-09-01T00:00:00Z", "claude-opus-5", 1, 1),
+            self._msg("2026-01-01T12:00:00Z", "claude-opus-5", 1, 1),
+            self._msg("2026-09-01T12:00:00Z", "claude-opus-5", 1, 1),
         ])
         report = usage.report(since="2026-06-01", group_by="day")
         self.assertEqual(list(report.keys()), ["2026-09-01"])
@@ -535,9 +541,83 @@ class UsageTests(OrcTestCase):
     def test_malformed_transcript_lines_are_skipped_not_fatal(self):
         d = config.CLAUDE_PROJECTS / "proj-a"
         d.mkdir(parents=True, exist_ok=True)
-        (d / "s1.jsonl").write_text("not json at all\n" + json.dumps(self._msg("2026-09-01T00:00:00Z", "claude-opus-5", 3, 3)) + "\n")
+        (d / "s1.jsonl").write_text("not json at all\n" + json.dumps(self._msg("2026-09-01T12:00:00Z", "claude-opus-5", 3, 3)) + "\n")
         report = usage.report(group_by="day")
         self.assertEqual(report["2026-09-01"]["input"], 3)
+
+    def test_day_bucket_lists_every_distinct_model_seen_that_day(self):
+        # A day's token totals mix models together if the user switched
+        # mid-day, so the bucket needs to separately name which model(s)
+        # produced them rather than only exposing that via `--by model`.
+        self.write_transcript("proj-a", "s1", [
+            self._msg("2026-09-01T09:00:00Z", "claude-sonnet-5", 1, 1),
+            self._msg("2026-09-01T15:00:00Z", "claude-opus-5", 1, 1),
+        ])
+        report = usage.report(group_by="day")
+        self.assertEqual(report["2026-09-01"]["models"], ["claude-opus-5", "claude-sonnet-5"])
+
+    def test_by_model_grouping_still_reports_its_own_models_list(self):
+        self.write_transcript("proj-a", "s1", [self._msg("2026-09-01T00:00:00Z", "claude-opus-5", 1, 1)])
+        report = usage.report(group_by="model")
+        self.assertEqual(report["claude-opus-5"]["models"], ["claude-opus-5"])
+
+    @unittest.skipUnless(hasattr(time, "tzset"), "tzset is POSIX-only; astimezone() still uses system-local tz on Windows but isn't overridable this way")
+    def test_day_grouping_converts_utc_timestamps_to_the_systems_local_day(self):
+        # Regression test: a real user at UTC+5:30 saw `orc usage report
+        # --by day` (and the menu/status quick-status built on it) report
+        # no row for "today" at 1am local time, because a transcript
+        # timestamp of 23:00 UTC the previous day -- 04:30 the *next* day
+        # locally -- was bucketed by ts.date() (the UTC date) instead of
+        # the local date the user actually experienced it as. Force the
+        # process's local timezone to IST for the duration of this test so
+        # it reproduces the same regardless of the machine running it.
+        self.write_transcript("proj-a", "s1", [self._msg("2026-09-01T23:00:00Z", "claude-opus-5", 1, 1)])
+        old_tz = os.environ.get("TZ")
+        os.environ["TZ"] = "Asia/Kolkata"
+        time.tzset()
+        try:
+            report = usage.report(group_by="day")
+        finally:
+            if old_tz is None:
+                del os.environ["TZ"]
+            else:
+                os.environ["TZ"] = old_tz
+            time.tzset()
+        self.assertEqual(list(report.keys()), ["2026-09-02"])
+
+
+class StatusCommandTests(OrcTestCase):
+    """`orc status`: the single-call replacement for `/orc` with no
+    arguments (see commands/orc.md) — identity plus today's usage,
+    including which model produced it, in one Bash round trip instead of
+    two commands Claude Code then has to read and narrate together."""
+
+    def _msg(self, ts, model, input_t, output_t):
+        return {
+            "timestamp": ts,
+            "message": {"model": model, "usage": {"input_tokens": input_t, "output_tokens": output_t}},
+        }
+
+    def test_reports_identity_and_todays_usage_with_model(self):
+        identity.set_identity("mine")
+        today_ts = datetime.now(timezone.utc).isoformat()
+        self.write_transcript("proj-a", "s1", [self._msg(today_ts, "claude-sonnet-5", 10, 20)])
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            cli_main(["status"])
+        out = buf.getvalue()
+        self.assertIn("mine", out)
+        self.assertIn("claude-sonnet-5", out)
+        self.assertIn("1 msgs", out)
+
+    def test_no_identity_and_no_usage_today_does_not_crash(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            cli_main(["status"])  # must not raise
+        out = buf.getvalue()
+        self.assertIn("not set", out)
+        self.assertIn("no messages logged yet", out)
 
 
 class SyncTests(OrcTestCase):
@@ -814,7 +894,7 @@ class DashboardTests(OrcTestCase):
 
     def test_usage_days_override(self):
         self.write_transcript("proj-a", "s1", [
-            self._usage_msg(f"2026-09-{d:02d}T00:00:00Z") for d in range(10, 15)
+            self._usage_msg(f"2026-09-{d:02d}T12:00:00Z") for d in range(10, 15)
         ])
         text = dashboard.render_terminal(color=False, usage_days=3)
         self.assertIn("last 3 days", text)

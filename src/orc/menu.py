@@ -26,7 +26,8 @@ def show_status():
     todays_key = sorted(today.keys())[-1] if today else None
     if todays_key:
         b = today[todays_key]
-        print(f"Usage today ({todays_key}): {b['input']:,} in / {b['output']:,} out / {b['messages']} messages")
+        models = ", ".join(b["models"]) or "unknown"
+        print(f"Usage today ({todays_key}): {b['input']:,} in / {b['output']:,} out / {b['messages']} messages  ·  model: {models}")
 
     skill_rows = skills.list_skills()
     enabled = sum(1 for r in skill_rows if r["enabled"])

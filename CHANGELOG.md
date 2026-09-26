@@ -5,7 +5,12 @@ All notable changes to this project are documented here. Format loosely follows 
 ## [Unreleased]
 
 ### Added
+- **`orc status`** — identity + today's usage (with model) in one call, so `/orc` with no arguments is a single Bash round trip instead of two commands Claude Code then has to read and stitch together into prose.
 - **`orc ecosystem`** — prints the `ECOSYSTEM.md` survey of third-party Claude Code skills directly from the CLI, also reachable from the interactive menu. The file itself moved to `src/orc/data/ECOSYSTEM.md` and now ships as package data, so it's readable after a plain `pip install claude-orc` too, not just from a git checkout.
+- **Model visibility in `orc usage report --by day|project|identity`** — each row now also lists which model(s) produced those tokens, so a day or project spanning a model switch no longer hides that in an aggregate number.
+
+### Fixed
+- **`orc usage report --by day` bucketed by UTC date, not local date** — transcript timestamps are UTC, and bucketing by `ts.date()` directly meant "today" could show no row for hours after local midnight in any timezone ahead of UTC. Day-grouping now converts to local time first.
 
 ## [0.2.0] - 2026-09-21
 

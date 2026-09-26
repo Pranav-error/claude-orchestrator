@@ -1,6 +1,7 @@
 import argparse
 import json
 import sys
+from datetime import date
 
 from . import __version__, agentlog, banner, config, dashboard, ecosystem, identity, init, memory, menu, settings, skills, sync, usage
 
@@ -85,15 +86,45 @@ def cmd_memory_link(args):
         print(f"linked: {result['from']} -> {result['to']}")
 
 
+def cmd_status(args):
+    """One-shot snapshot for `/orc` with no arguments: identity + today's
+    usage, model included. Exists so that command is a single Bash call
+    instead of two (`identity show` + `usage report`) that Claude Code then
+    has to read and narrate together — that round trip was real, avoidable
+    token cost for something this cheap to compute directly."""
+    cur = identity.current()
+    if cur:
+        print(f"identity: {cur['label']} on {cur['machine']} (since {cur['since']})")
+    else:
+        print("identity: not set on this machine — run `orc identity set <label>`")
+
+    today = date.today().isoformat()
+    row = usage.report(group_by="day").get(today)
+    if not row:
+        print(f"usage today ({today}): no messages logged yet")
+        return
+    models = ", ".join(row["models"]) or "unknown"
+    print(f"usage today ({today}): {row['input']:,} in / {row['output']:,} out / {row['messages']} msgs  ·  model: {models}")
+
+
 def cmd_usage_report(args):
     data = usage.report(since=args.since, group_by=args.by)
     if not data:
         print("no usage data found under ~/.claude/projects")
         return
-    print(f"{'key':<28}{'input':>12}{'output':>12}{'cache_r':>12}{'cache_w':>12}{'msgs':>8}")
+    # Grouping by model already puts the model in `key`, so the models
+    # column would just repeat it — only show it for the other three.
+    show_models = args.by != "model"
+    header = f"{'key':<28}{'input':>12}{'output':>12}{'cache_r':>12}{'cache_w':>12}{'msgs':>8}"
+    if show_models:
+        header += "  models"
+    print(header)
     totals = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0, "messages": 0}
     for key, b in data.items():
-        print(f"{key:<28}{b['input']:>12}{b['output']:>12}{b['cache_read']:>12}{b['cache_write']:>12}{b['messages']:>8}")
+        row = f"{key:<28}{b['input']:>12}{b['output']:>12}{b['cache_read']:>12}{b['cache_write']:>12}{b['messages']:>8}"
+        if show_models:
+            row += f"  {', '.join(b['models'])}"
+        print(row)
         totals["input"] += b["input"]
         totals["output"] += b["output"]
         totals["cache_read"] += b["cache_read"]
@@ -261,6 +292,9 @@ def build_parser():
 
     eco_p = sub.add_parser("ecosystem", help="print the survey of third-party Claude Code skills worth adopting")
     eco_p.set_defaults(func=cmd_ecosystem)
+
+    status_p = sub.add_parser("status", help="identity + today's usage (including model) in one call")
+    status_p.set_defaults(func=cmd_status)
 
     id_p = sub.add_parser("identity", help="which account is active on this machine")
     id_sub = id_p.add_subparsers(dest="identity_command", required=True)

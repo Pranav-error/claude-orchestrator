@@ -8,7 +8,7 @@ User's argument text: $ARGUMENTS
 
 Map it like this (case-insensitively, first word decides):
 
-- empty, or "status" → `orc identity show` AND a one-day `orc usage report --by day` (today's row only), summarized together as a quick status.
+- empty, or "status" → `orc status` — a single call, already combining identity + today's usage + model. Run it alone; don't also run `orc identity show` or `orc usage report` on top of it (that second round trip is exactly the extra-token cost this single command exists to avoid), and don't re-summarize its output — a one-line caption is enough.
 - "search <query>" or "find <query>" → `orc memory search "<query>"`
 - "links <name>" → `orc memory links "<name>"`
 - "link <from> <to>" → `orc memory link "<from>" "<to>"`

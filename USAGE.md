@@ -54,6 +54,7 @@ substring that matches several options lists them rather than guessing
 | Command | What it does |
 |---|---|
 | `orc init` | Bootstrap `$ORC_DATA_DIR` as a fresh private data repo — run this once, first |
+| `orc status` | Identity + today's usage (with model), in one call |
 | `orc identity show` | Which account/machine is "active" right now, per your own tracking |
 | `orc identity set <label>` | Record an account switch (e.g. `orc identity set client-x`) |
 | `orc identity log` | Every switch you've ever recorded |
@@ -63,7 +64,7 @@ substring that matches several options lists them rather than guessing
 | `orc memory link "<from>" "<to>"` | Add a link between two memories |
 | `orc memory graph [--top N]` | Rank memories by link count — which ones are hubs |
 | `orc memory here [--limit N]` | Memories belonging to the current project |
-| `orc usage report --by day\|project\|model\|identity` | Real token usage, read straight from Claude Code's own transcripts |
+| `orc usage report --by day\|project\|model\|identity` | Real token usage (and which model(s) produced it) read straight from Claude Code's own transcripts |
 | `orc skill list` | Every skill under `~/.claude/skills/`, managed or not, enabled or not |
 | `orc skill adopt <name> [--source <url>]` | Bring an already-installed skill under registry control |
 | `orc skill install <name> <git-url>` | Clone a new skill straight into the registry, enable it |
@@ -275,18 +276,38 @@ $ orc identity log
 2026-09-20T10:15:00+00:00  client-acme           my-laptop
 ```
 
+### Status
+
+`orc status` is the one-call version of "am I set up right and what did
+I use today" — the active identity plus today's usage, model included:
+
+```
+$ orc status
+identity: mine on my-laptop (since 2026-09-20T10:15:00+00:00)
+usage today (2026-09-28): 106 in / 31,816 out / 54 msgs  ·  model: claude-sonnet-5
+```
+
+This is what `/orc` with no arguments runs (see `commands/orc.md`) —
+one Bash call instead of `orc identity show` plus a separate
+`orc usage report --by day`, since Claude Code would otherwise have to
+read both and stitch them into prose itself, at a real token cost for
+something this cheap to compute directly.
+
 ### Usage
 
 Token counts come straight from Claude Code's own session transcripts
 (`~/.claude/projects/*/*.jsonl`) — every assistant message already
 carries an exact `usage` block. Nothing is estimated or tracked
 separately; `orc` just reads what's already on disk and aggregates it.
+Timestamps in those transcripts are UTC; day-grouping converts to your
+system's local time first, so "today" means the same thing `orc status`
+and your own clock mean by it.
 
 ```
 $ orc usage report --by day --since 2026-09-15
-key            input      output     cache_r     cache_w    msgs
-2026-09-15      1252      389779   234437519     5879759      628
-2026-09-16       842      327137   260835562     6949025      421
+key            input      output     cache_r     cache_w    msgs  models
+2026-09-15      1252      389779   234437519     5879759      628  claude-opus-5, claude-sonnet-5
+2026-09-16       842      327137   260835562     6949025      421  claude-sonnet-5
 ...
 ```
 
@@ -301,14 +322,17 @@ see exactly how much was used under which account:
 
 ```
 $ orc usage report --by identity
-key             input      output     cache_r     cache_w    msgs
-client-acme       472      190295    57369527      427323      236
-mine              809      289596   176988218     4786873      405
-unattributed    38464    16390562  8010690230   194017070    19222
+key             input      output     cache_r     cache_w    msgs  models
+client-acme       472      190295    57369527      427323      236  claude-sonnet-5
+mine              809      289596   176988218     4786873      405  claude-opus-5, claude-sonnet-5
+unattributed    38464    16390562  8010690230   194017070    19222  claude-opus-5
 ```
 
 (`unattributed` is any usage from before you ever ran `orc identity set` —
-there's no way to retroactively know who was active.)
+there's no way to retroactively know who was active.) The `models`
+column lists every distinct model seen in that row — a day or identity
+can span a model switch, which the token totals alone would hide.
+`--by model` skips the column since it's already the row's key.
 
 ### Skills
 
