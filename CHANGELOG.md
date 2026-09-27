@@ -5,6 +5,9 @@ All notable changes to this project are documented here. Format loosely follows 
 ## [Unreleased]
 
 ### Added
+- **`orc memory browse`** — an interactive terminal browser over the memory store: type-to-search list, a live preview pane (file body, existing `[[links]]`, and similarity-based "related, not linked" nominations), and `^L` to manually link the selected memory to another one. Needs a real terminal (curses), so it's not runnable through `!orc`/`/orc`.
+- **`orc memory suggest "<name>"`** — candidates worth manually `[[linking]]` a memory to, ranked by word overlap with every other unlinked memory. A nomination for a human to confirm, never applied automatically.
+- **`orc memory related [--quiet-if-none]`** — already-confirmed `[[links]]` that cross a project boundary, for whatever project the cwd is in. Safe to wire into a `SessionStart` hook (see README) since it only ever echoes deliberate `orc memory link` calls, never a guess.
 - **`orc status`** — identity + today's usage (with model) in one call, so `/orc` with no arguments is a single Bash round trip instead of two commands Claude Code then has to read and stitch together into prose.
 - **`orc ecosystem`** — prints the `ECOSYSTEM.md` survey of third-party Claude Code skills directly from the CLI, also reachable from the interactive menu. The file itself moved to `src/orc/data/ECOSYSTEM.md` and now ships as package data, so it's readable after a plain `pip install claude-orc` too, not just from a git checkout.
 - **Model visibility in `orc usage report --by day|project|identity`** — each row now also lists which model(s) produced those tokens, so a day or project spanning a model switch no longer hides that in an aggregate number.

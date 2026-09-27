@@ -360,3 +360,121 @@ def search(query: str) -> list[dict]:
         })
     hits.sort(key=lambda h: (-h["score"], h["name"]))
     return hits
+
+
+def list_all() -> list[dict]:
+    """Every memory, pre-loaded (name/description/type/body/mtime), for
+    the interactive browser and anything doing text comparison across the
+    whole store. Reading a few hundred small markdown files upfront is
+    simpler than caching them piecemeal, and this only runs once per
+    `orc memory browse` session, not per keystroke."""
+    if not config.MEMORY_DIR.exists():
+        return []
+    entries = []
+    for f in sorted(config.MEMORY_DIR.rglob("*.md")):
+        meta, body = parse_frontmatter(f.read_text())
+        entries.append({
+            "stem": f.stem,
+            "path": f,
+            "name": meta.get("name", f.stem),
+            "description": meta.get("description", ""),
+            "type": meta.get("type", "uncategorized"),
+            "source_project": meta.get("source_project", ""),
+            "body": body,
+            "mtime": f.stat().st_mtime,
+        })
+    return entries
+
+
+_WORD_RE = re.compile(r"[a-z]{4,}")
+
+
+def _tokens(*texts: str) -> set:
+    words = set()
+    for t in texts:
+        words.update(_WORD_RE.findall(t.lower()))
+    return words
+
+
+def suggest_related(query: str, top_n: int = 5, entries: list[dict] | None = None, graph: dict | None = None) -> list[dict]:
+    """Candidates worth manually [[linking]] the queried memory to,
+    ranked by crude word overlap (Jaccard similarity over words of 4+
+    letters — no stemming, no TF-IDF weighting). This is a *nomination*
+    for a person to confirm via `orc memory link` or the browse UI's link
+    picker, never applied automatically: a false-positive link (two
+    unrelated projects that happen to share vocabulary) is worse than a
+    missed one, and there's no way to verify from text alone that two
+    memories are actually about "the same kind of project" rather than
+    just using similar words.
+
+    `entries`/`graph` let a caller that already loaded them (the browse
+    UI, redrawing on every keystroke) pass them in instead of this
+    function re-reading every file from disk each time it's called.
+    """
+    entries_by_stem = {e["stem"]: e for e in (entries if entries is not None else list_all())}
+    graph = graph if graph is not None else build_link_graph()
+    stem = _find_one(query, graph)
+    if stem not in entries_by_stem:
+        return []
+
+    already_linked = set(graph[stem]["outgoing"]) | set(graph[stem]["incoming"])
+    target = entries_by_stem[stem]
+    target_tokens = _tokens(target["name"], target["description"], target["body"])
+    if not target_tokens:
+        return []
+
+    scored = []
+    for other_stem, other in entries_by_stem.items():
+        if other_stem == stem or other_stem in already_linked:
+            continue
+        other_tokens = _tokens(other["name"], other["description"], other["body"])
+        overlap = target_tokens & other_tokens
+        if not overlap:
+            continue
+        jaccard = len(overlap) / len(target_tokens | other_tokens)
+        scored.append({
+            "stem": other_stem,
+            "name": other["name"],
+            "source_project": other["source_project"],
+            "score": round(jaccard * 100),
+        })
+    scored.sort(key=lambda s: (-s["score"], s["name"]))
+    return scored[:top_n]
+
+
+def cross_project_links(path=None) -> list[dict]:
+    """Already-[[linked]] memories that cross a project boundary — e.g. a
+    memory recorded from `darapana-v2` explicitly linked to one from
+    `darapana`. This is what a session-start hook can safely echo
+    unprompted: every entry here came from a deliberate `orc memory
+    link` (or the browse UI's link picker) call, never a guess, so
+    surfacing it costs nothing in false positives — unlike
+    `suggest_related`, which is a nomination for a human to confirm."""
+    target = project_root(path)
+    valid = _candidate_subdir_encodings(target)
+    graph = build_link_graph()
+
+    own_stems = set()
+    for stem, data in graph.items():
+        meta, _ = parse_frontmatter(data["path"].read_text())
+        if meta.get("source_project", "") in valid:
+            own_stems.add(stem)
+
+    results = []
+    for stem in own_stems:
+        data = graph[stem]
+        for direction, others in (("outgoing", data["outgoing"]), ("incoming", data["incoming"])):
+            for other_stem in others:
+                if other_stem in own_stems:
+                    continue  # linked to another memory of this SAME project -- not cross-project
+                other_meta, _ = parse_frontmatter(graph[other_stem]["path"].read_text())
+                results.append({
+                    "from_stem": stem,
+                    "from_name": data["name"],
+                    "direction": direction,
+                    "other_stem": other_stem,
+                    "other_name": graph[other_stem]["name"],
+                    "other_project": other_meta.get("source_project", "unknown"),
+                })
+    results.sort(key=lambda r: (r["from_name"], r["other_name"]))
+    return results

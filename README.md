@@ -127,7 +127,7 @@ orc dashboard
 
 | | |
 |---|---|
-| **Memory** | `orc memory sync` mirrors Claude Code's scattered per-project memory into one topic-keyed, deduped store. `orc memory search` (relevance-ranked), `orc memory links`/`link` for `[[wiki-style]]` cross-references, `orc memory graph` to see which memories are hubs, `orc memory here` for the current project's memories. |
+| **Memory** | `orc memory sync` mirrors Claude Code's scattered per-project memory into one topic-keyed, deduped store. `orc memory search` (relevance-ranked), `orc memory links`/`link` for `[[wiki-style]]` cross-references, `orc memory graph` to see which memories are hubs, `orc memory here` for the current project's memories, `orc memory browse` for an interactive, searchable terminal view with a manual cross-project linker (`orc memory suggest` powers its similarity nominations; `orc memory related` echoes confirmed cross-project links, safe to run at session start). |
 | **Identity** | `orc identity set <label>` records which account is active on this machine right now — since Claude Code itself never does, and a filesystem never changes on an account swap on the same box (only a different *machine* needs `orc sync`). |
 | **Usage** | `orc usage report --by day\|project\|model\|identity` — real token counts read straight from Claude Code's own transcripts, day/project/identity rows also listing which model(s) produced them. Nothing tracked manually. `orc status` gives just today's row plus the active identity, in one call. |
 | **Skills** | `orc skill adopt/install/enable/disable` — takes custody of a skill (moves it into your data repo, symlinks it back), so hand-downloaded skills have a recorded source and travel with `orc sync` instead of needing manual reinstall per machine. |
@@ -161,12 +161,14 @@ Installing the plugin (above) gives you both pieces automatically:
 
 Not using the plugin system? Copy or symlink `commands/orc.md` to `~/.claude/commands/orc.md` for just the slash command.
 
-To make sync automatic at the start/end of every Claude Code session (any account, any project), add to your `~/.claude/settings.json`:
+To make sync automatic at the start/end of every Claude Code session (any account, any project), add to your `~/.claude/settings.json`. The second `SessionStart` hook is optional: it echoes any confirmed cross-project `[[links]]` for whatever project the session just started in (see `orc memory related` above) — deliberately *not* redirected to a log file like the sync line, since the point is for Claude Code to see it as session context, not to sit unread in a file:
 
 ```json
 "hooks": {
-  "SessionStart": [{ "hooks": [{ "type": "command",
-    "command": "~/claude-orchestrator/bin/orc sync pull >> ~/.orc-sync.log 2>&1 || true" }] }],
+  "SessionStart": [{ "hooks": [
+    { "type": "command", "command": "~/claude-orchestrator/bin/orc sync pull >> ~/.orc-sync.log 2>&1 || true" },
+    { "type": "command", "command": "~/claude-orchestrator/bin/orc memory related --quiet-if-none || true" }
+  ] }],
   "SessionEnd": [{ "hooks": [{ "type": "command",
     "command": "~/claude-orchestrator/bin/orc sync push >> ~/.orc-sync.log 2>&1 || true" }] }]
 }

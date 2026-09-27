@@ -1062,6 +1062,147 @@ class MemoryForProjectTests(OrcTestCase):
         self.assertEqual(len(memory.for_project(repo, limit=2)), 2)
 
 
+class MemoryRelatedTests(OrcTestCase):
+    """`suggest_related` (text-similarity nominations) and
+    `cross_project_links` (already-[[linked]] memories crossing a project
+    boundary) -- the two pieces behind `orc memory suggest`/`related` and
+    the browse UI's manual linker."""
+
+    def test_suggest_related_ranks_by_word_overlap_and_excludes_already_linked(self):
+        self.write_memory_file("proj-a", "target.md", "Target", "project",
+                                "clerk supabase vercel deploy pipeline")
+        self.write_memory_file("proj-a", "close.md", "Close", "project",
+                                "clerk supabase vercel domain setup")
+        self.write_memory_file("proj-a", "far.md", "Far", "project",
+                                "unrelated topic entirely about gardening")
+        self.write_memory_file("proj-a", "linked.md", "Linked", "project",
+                                "clerk supabase vercel already linked, see [[target]]")
+        memory.sync()
+
+        hits = memory.suggest_related("target")
+        by_name = {h["name"]: h["score"] for h in hits}
+        self.assertNotIn("Linked", by_name)  # already linked -- not a nomination anymore
+        # Both fixtures share the test helper's boilerplate "description:
+        # test entry", so some token overlap with "Far" is unavoidable --
+        # assert the real signal (Close shares real vocabulary, ranks
+        # clearly higher) rather than Far's absence.
+        self.assertIn("Close", by_name)
+        self.assertGreater(by_name["Close"], by_name.get("Far", 0))
+
+    def test_suggest_related_never_writes_a_link(self):
+        # It's a nomination for a human to confirm, not an automatic action.
+        self.write_memory_file("proj-a", "target.md", "Target", "project", "clerk supabase vercel target-only-word")
+        self.write_memory_file("proj-a", "close.md", "Close", "project", "clerk supabase vercel close-only-word")
+        memory.sync()
+
+        memory.suggest_related("target")
+        text = (config.MEMORY_DIR / "project" / "target.md").read_text()
+        self.assertNotIn("[[close]]", text)
+
+    def test_suggest_related_accepts_preloaded_entries_and_graph(self):
+        # The browse UI passes these in to avoid re-reading every file from
+        # disk on every keystroke -- must give the same answer either way.
+        self.write_memory_file("proj-a", "target.md", "Target", "project", "clerk supabase vercel target-only-word")
+        self.write_memory_file("proj-a", "close.md", "Close", "project", "clerk supabase vercel close-only-word")
+        memory.sync()
+
+        entries, graph = memory.list_all(), memory.build_link_graph()
+        self.assertEqual(memory.suggest_related("target"), memory.suggest_related("target", entries=entries, graph=graph))
+
+    def test_suggest_related_unknown_query_raises(self):
+        with self.assertRaises(ValueError):
+            memory.suggest_related("nothing-like-this-exists")
+
+    def test_cross_project_links_finds_links_crossing_a_project_boundary(self):
+        repo_a, repo_b = self.root / "repo-a", self.root / "repo-b"
+        repo_a.mkdir()
+        repo_b.mkdir()
+        self.write_memory_file(memory.encode_project_dir(repo_a), "a.md", "A Note", "project", "note from repo a")
+        self.write_memory_file(memory.encode_project_dir(repo_b), "b.md", "B Note", "project", "note from repo b")
+        memory.sync()
+        memory.add_link("a-note", "b-note")
+
+        links = memory.cross_project_links(repo_a)
+        self.assertEqual(len(links), 1)
+        self.assertEqual(links[0]["from_name"], "A Note")
+        self.assertEqual(links[0]["direction"], "outgoing")
+        self.assertEqual(links[0]["other_name"], "B Note")
+
+    def test_cross_project_links_excludes_links_within_the_same_project(self):
+        repo_a = self.root / "repo-a"
+        repo_a.mkdir()
+        encoded = memory.encode_project_dir(repo_a)
+        self.write_memory_file(encoded, "a.md", "A Note", "project", "see [[b-note]]")
+        self.write_memory_file(encoded, "b.md", "B Note", "project", "sibling note, same repo")
+        memory.sync()
+
+        self.assertEqual(memory.cross_project_links(repo_a), [])
+
+    def test_cross_project_links_empty_for_unrelated_project(self):
+        repo_a, repo_b, repo_c = self.root / "repo-a", self.root / "repo-b", self.root / "repo-c"
+        for r in (repo_a, repo_b, repo_c):
+            r.mkdir()
+        self.write_memory_file(memory.encode_project_dir(repo_a), "a.md", "A Note", "project", "note from repo a")
+        self.write_memory_file(memory.encode_project_dir(repo_b), "b.md", "B Note", "project", "note from repo b")
+        memory.sync()
+        memory.add_link("a-note", "b-note")
+
+        self.assertEqual(memory.cross_project_links(repo_c), [])
+
+
+class MemoryRelatedCliTests(OrcTestCase):
+    """`orc memory related`/`suggest` through the cli.py layer (see the
+    comment on CliErrorHandlingTests for why that layer gets its own
+    tests instead of trusting the module-level ones)."""
+
+    def test_related_prints_cross_project_links_for_the_cwd(self):
+        repo_a, repo_b = self.root / "repo-a", self.root / "repo-b"
+        repo_a.mkdir()
+        repo_b.mkdir()
+        self.write_memory_file(memory.encode_project_dir(repo_a), "a.md", "A Note", "project", "note from repo a")
+        self.write_memory_file(memory.encode_project_dir(repo_b), "b.md", "B Note", "project", "note from repo b")
+        memory.sync()
+        memory.add_link("a-note", "b-note")
+
+        old_cwd = os.getcwd()
+        os.chdir(repo_a)
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                cli_main(["memory", "related"])
+        finally:
+            os.chdir(old_cwd)
+        self.assertIn("A Note", buf.getvalue())
+        self.assertIn("B Note", buf.getvalue())
+
+    def test_related_quiet_if_none_prints_nothing(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            cli_main(["memory", "related", "--quiet-if-none"])
+        self.assertEqual(buf.getvalue(), "")
+
+    def test_related_without_quiet_flag_says_so(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            cli_main(["memory", "related"])
+        self.assertIn("no cross-project", buf.getvalue())
+
+    def test_suggest_prints_ranked_candidates(self):
+        self.write_memory_file("proj-a", "target.md", "Target", "project", "clerk supabase vercel target-only-word")
+        self.write_memory_file("proj-a", "close.md", "Close", "project", "clerk supabase vercel close-only-word")
+        memory.sync()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            cli_main(["memory", "suggest", "target"])
+        self.assertIn("Close", buf.getvalue())
+
+    def test_suggest_bad_query_prints_clean_error_not_a_traceback(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            cli_main(["memory", "suggest", "nothing-like-this-exists"])  # must not raise
+        self.assertIn("error:", buf.getvalue())
+
+
 class MemoryGraphTests(OrcTestCase):
     def _linked_set(self):
         # alpha <- beta, alpha <- gamma, beta -> alpha  => alpha is the hub

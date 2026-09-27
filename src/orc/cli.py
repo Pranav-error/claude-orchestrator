@@ -86,6 +86,35 @@ def cmd_memory_link(args):
         print(f"linked: {result['from']} -> {result['to']}")
 
 
+def cmd_memory_related(args):
+    links = memory.cross_project_links()
+    if not links:
+        if not args.quiet_if_none:
+            print("no cross-project [[links]] recorded for this project yet")
+        return
+    for l in links:
+        arrow = "->" if l["direction"] == "outgoing" else "<-"
+        print(f"{l['from_name']}  {arrow}  {l['other_name']}  ({l['other_project']})")
+
+
+def cmd_memory_suggest(args):
+    try:
+        hits = memory.suggest_related(args.query, top_n=args.top)
+    except ValueError as e:
+        print(f"error: {e}")
+        return
+    if not hits:
+        print("no unlinked candidates found")
+        return
+    for h in hits:
+        print(f"{h['score']:>3}%  {h['name']}  ({h['source_project'] or 'unknown project'})")
+
+
+def cmd_memory_browse(args):
+    from . import browse
+    browse.main()
+
+
 def cmd_status(args):
     """One-shot snapshot for `/orc` with no arguments: identity + today's
     usage, model included. Exists so that command is a single Bash call
@@ -331,6 +360,18 @@ def build_parser():
     mem_link.add_argument("from_", metavar="from")
     mem_link.add_argument("to")
     mem_link.set_defaults(func=cmd_memory_link)
+
+    mem_related = mem_sub.add_parser("related", help="already-[[linked]] memories that cross a project boundary -- safe to run at session start")
+    mem_related.add_argument("--quiet-if-none", action="store_true", help="print nothing when there's nothing to report")
+    mem_related.set_defaults(func=cmd_memory_related)
+
+    mem_suggest = mem_sub.add_parser("suggest", help="candidates worth manually [[linking]] to this memory, ranked by text overlap -- never applied automatically")
+    mem_suggest.add_argument("query")
+    mem_suggest.add_argument("--top", type=int, default=5)
+    mem_suggest.set_defaults(func=cmd_memory_suggest)
+
+    mem_browse = mem_sub.add_parser("browse", help="interactive terminal browser over the memory store (needs a real tty -- not runnable through Claude's Bash tool)")
+    mem_browse.set_defaults(func=cmd_memory_browse)
 
     usage_p = sub.add_parser("usage", help="token usage aggregated from Claude Code session transcripts")
     usage_sub = usage_p.add_subparsers(dest="usage_command", required=True)

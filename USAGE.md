@@ -62,8 +62,11 @@ substring that matches several options lists them rather than guessing
 | `orc memory sync` | Pull any new memory files from all your Claude Code projects into the canonical store |
 | `orc memory links "<name>"` | Show what a memory links to / is linked from (`[[wiki-links]]`) |
 | `orc memory link "<from>" "<to>"` | Add a link between two memories |
+| `orc memory suggest "<name>" [--top N]` | Candidates worth manually linking to, by text overlap -- never applied automatically |
+| `orc memory related [--quiet-if-none]` | Confirmed cross-project links for the current project -- safe for a `SessionStart` hook |
 | `orc memory graph [--top N]` | Rank memories by link count — which ones are hubs |
 | `orc memory here [--limit N]` | Memories belonging to the current project |
+| `orc memory browse` | Interactive terminal browser (needs a real tty -- run directly, not via `!orc`/`/orc`) |
 | `orc usage report --by day\|project\|model\|identity` | Real token usage (and which model(s) produced it) read straight from Claude Code's own transcripts |
 | `orc skill list` | Every skill under `~/.claude/skills/`, managed or not, enabled or not |
 | `orc skill adopt <name> [--source <url>]` | Bring an already-installed skill under registry control |
@@ -184,6 +187,33 @@ auth-retry-logic
 `orc memory link "<from>" "<to>"` adds a link by hand (idempotent — a
 repeat call reports "already linked" instead of duplicating it).
 
+**Suggesting a link, and echoing confirmed ones.** `orc memory suggest
+"<name>"` nominates candidates worth manually linking to, ranked by
+crude word overlap with every other unlinked memory — it never writes
+anything itself, since a wrong link is worse than a missed one and
+there's no way to verify from text alone that two memories are
+genuinely about the same kind of project rather than just sharing
+vocabulary:
+
+```
+$ orc memory suggest darapana-v2-overview
+ 41%  production-notes           (-Users-you-Documents-GitHub-darapana)
+ 33%  registration-fixes         (-Users-you-Documents-GitHub-darapana)
+```
+
+Once you've confirmed one with `orc memory link`, it's a real,
+persisted `[[link]]` — and if it crosses a project boundary, `orc
+memory related` (run from inside either project) echoes it:
+
+```
+$ orc memory related
+darapana-v2-overview  ->  production-notes  (-Users-you-Documents-GitHub-darapana)
+```
+
+`--quiet-if-none` prints nothing when there's nothing to report, which
+is what makes it safe to wire into a `SessionStart` hook (see README) —
+every other session's start stays silent.
+
 When a query matches several memories, you get a numbered list rather
 than a guess — and in the interactive menu, one you can pick from
 directly:
@@ -230,6 +260,52 @@ $ orc memory graph --top 5
 Two memories can end up sharing a display name (a collision that sync
 resolved into `slug--project.md`); those rows fall back to their unique
 stem so they don't read as duplicates.
+
+### Memory browse
+
+`orc memory browse` is an interactive terminal browser over the whole
+store — needs a real terminal (curses attaches to a tty), so run it
+directly rather than through `!orc` or `/orc`, which have none.
+
+With an empty search box it doesn't dump the whole store at you — it
+shows how many memories exist per type, and the most recently touched
+ones, so you're oriented before you start typing:
+
+```
+orc memory browse
+
+ search: _
+ user 10  feedback 45  project 170  reference 21
+
+ recent:
+   contribution-state.md                   2h ago
+   grass-next-action-when-slot-frees.md    1d ago
+```
+
+Type anything and it filters to matches (name, description, type, or
+stem), name hits ranked first. The right-hand pane renders the selected
+file's body, its existing `[[links]]`, and — this is the point of the
+whole thing — a "related, not linked" list from `orc memory suggest`
+for that file:
+
+```
+ search: darapana-v2                          1 match
+
+  ▸ darapana-v2-overview   project │ # darapana-v2-overview
+                                    │
+                                    │ (file body...)
+                                    │
+                                    │ Related, not linked (^L to link):
+                                    │   41%  production-notes
+                                    │   33%  registration-fixes
+```
+
+**`^L` (Ctrl-L)** opens a second search box to pick a memory to link
+the selected one to — confirming with Enter writes a real `[[link]]`
+(the same thing `orc memory link` does) and returns to the list. **Not
+plain `l`**: that has to stay typeable into the search box. `Enter`
+opens the selected file in `$EDITOR`; `Esc` quits (also not `q`, for
+the same reason).
 
 ### Memories for the current project
 

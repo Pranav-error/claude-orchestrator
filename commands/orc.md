@@ -12,6 +12,9 @@ Map it like this (case-insensitively, first word decides):
 - "search <query>" or "find <query>" → `orc memory search "<query>"`
 - "links <name>" → `orc memory links "<name>"`
 - "link <from> <to>" → `orc memory link "<from>" "<to>"`
+- "suggest <name>" or "related to <name>" → `orc memory suggest "<name>"`
+- "related" (no more words) → `orc memory related`
+- "browse" → don't run this via Bash — `orc memory browse` is an interactive curses UI with no tty inside a chat turn, so it would just hang. Tell the user to run `orc memory browse` themselves in a real terminal.
 - "sync-memory" or "sync memory" → `orc memory sync`
 - "usage" [optional: "by day|project|model|identity"] → `orc usage report --by <that, default day>`
 - "identity" with no more words → `orc identity show`

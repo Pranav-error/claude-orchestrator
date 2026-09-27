@@ -31,6 +31,9 @@ and don't fabricate output.
 - "how much have I used today/this week/on project X" → `orc usage report --by day` (or `--by project`, `--by model`, `--by identity`)
 - "search my memory/notes for X" → `orc memory search "X"`
 - "what's related to X" / "what links to X" → `orc memory links "X"`
+- "what could I link X to" / "find related memories for X" → `orc memory suggest "X"` — a nomination for the user to confirm with `orc memory link`, never something to link automatically on their behalf
+- "does this project link to anything else" → `orc memory related`
+- "let me browse my memory" / "show me the memory files" → tell the user to run `orc memory browse` themselves in a real terminal; it's an interactive curses UI with no tty inside a Bash tool call, so running it here would just hang
 - "what skills do I have" → `orc skill list`
 - "adopt/enable/disable skill X" → `orc skill adopt "X"` / `orc skill enable "X"` / `orc skill disable "X"`
 - "switch to my other account" / "I'm on a client's account now" → `orc identity set "<label>"`
