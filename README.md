@@ -55,6 +55,22 @@ Three problems, one root cause — state trapped on a single machine/account ins
 orc config for themes/options  ·  orc --help for every command
 ```
 
+For a quick check rather than the full dashboard, `orc status` — also
+what `/orc` with no arguments runs — is one line each:
+
+```
+$ orc status
+identity: mine on Pranavs-AIR-1 (since 2026-09-21T17:33:36+00:00)
+usage today (2026-09-28): 914 in / 389,901 out / 458 msgs  ·  model: claude-sonnet-5
+```
+
+And `orc memory browse` for actually sitting and looking through the
+memory store interactively — search-as-you-type, live preview, and a
+manual cross-project linker (`^L`) for the "this new project is like
+that old one" case. See [USAGE.md](USAGE.md#memory-browse) for the full
+walkthrough, including how the linking and the `related`/`suggest`
+commands fit together.
+
 ## Architecture: two repos, on purpose
 
 This code is public. Your actual data is not — and never touches this repo.

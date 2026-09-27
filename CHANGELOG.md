@@ -14,6 +14,7 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ### Fixed
 - **`orc usage report --by day` bucketed by UTC date, not local date** — transcript timestamps are UTC, and bucketing by `ts.date()` directly meant "today" could show no row for hours after local midnight in any timezone ahead of UTC. Day-grouping now converts to local time first.
+- **`orc memory suggest`/`related` showed the raw dash-encoded project name** (e.g. `-Users-you-Documents-GitHub-my-app`) instead of a readable path. `memory.readable_project` recovers the real path from a session transcript instead of guessing by swapping dashes back to slashes, which is lossy when a real directory name contains a literal dash.
 
 ## [0.2.0] - 2026-09-21
 

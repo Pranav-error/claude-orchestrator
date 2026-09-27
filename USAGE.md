@@ -134,6 +134,63 @@ Two different mechanisms, for two different needs:
 | Skill management | Not automatic | `orc skill adopt/install/enable/disable` |
 | Identity tracking | Not automatic — nothing can guess which account you're using | `orc identity set <label>` whenever you switch |
 | Agent run logging | Not automatic | `orc agent log ...` |
+| Cross-project linking | Never automatic — a false-positive link is worse than a missed one | `orc memory link`, or `^L` inside `orc memory browse` |
+| Cross-project nudge at session start | If you add the second `SessionStart` hook (see README) — but only echoes links you already confirmed, never a guess | `orc memory related` any other time |
+
+## Worked example: giving a new project context from an old one
+
+The scenario this was built for: you start a new project that's similar
+to one you've already done work on, and you want a future Claude Code
+session in the new project to be nudged toward what you already learned
+in the old one — without re-explaining it, and without the tool ever
+*guessing* a connection on your behalf.
+
+**1. Find the candidate.** From inside the new project (or via `orc
+memory browse`, searching for its memory file), ask what it's similar
+to:
+
+```
+$ orc memory suggest darapana-v2-overview
+ 41%  production-notes           (~/Documents/GitHub/darapana)
+ 33%  registration-fixes         (~/Documents/GitHub/darapana)
+```
+
+This is a ranked guess (word overlap, nothing smarter) — a nomination
+for you to look at, not a claim. Open `orc memory browse` instead of the
+raw command if you want to read the candidate's content before deciding:
+search for `darapana-v2-overview`, and its preview pane shows the same
+suggestions inline, live, next to the file itself.
+
+**2. Confirm it, either way.**
+
+```
+$ orc memory link darapana-v2-overview production-notes
+linked: darapana-v2-overview -> production-notes
+```
+
+Or, from inside `orc memory browse` with `darapana-v2-overview`
+selected: `^L` (Ctrl-L), type `production-notes` to filter the second
+search box, `Enter` to confirm. Same underlying call either way — the
+browser is just a faster way to search-then-link without leaving the
+preview.
+
+**3. It's now a real, permanent `[[link]]`** in
+`darapana-v2-overview.md`'s body, synced like any other memory content.
+`orc memory links darapana-v2-overview` shows it from either direction.
+
+**4. Get it surfaced without asking.** Because this link crosses a
+project boundary (`darapana-v2` -> `darapana`), it shows up in:
+
+```
+$ orc memory related
+darapana-v2-overview  ->  production-notes  (~/Documents/GitHub/darapana)
+```
+
+Wire the optional second `SessionStart` hook (README → "Using it from
+inside Claude Code") and this line — or nothing, via `--quiet-if-none`,
+when there's nothing to report — becomes part of what Claude Code sees
+at the start of every session in `darapana-v2`, without you having to
+ask for it that session.
 
 ## Features in depth
 
@@ -197,9 +254,15 @@ vocabulary:
 
 ```
 $ orc memory suggest darapana-v2-overview
- 41%  production-notes           (-Users-you-Documents-GitHub-darapana)
- 33%  registration-fixes         (-Users-you-Documents-GitHub-darapana)
+ 41%  production-notes           (~/Documents/GitHub/darapana)
+ 33%  registration-fixes         (~/Documents/GitHub/darapana)
 ```
+
+(The project shown in parentheses is recovered from a session
+transcript under that memory's source project, not just the dashes in
+`source_project` swapped back to slashes — a real directory name can
+contain a literal dash too, so that swap alone is ambiguous. See
+`memory.readable_project` if you're curious.)
 
 Once you've confirmed one with `orc memory link`, it's a real,
 persisted `[[link]]` — and if it crosses a project boundary, `orc
@@ -207,7 +270,7 @@ memory related` (run from inside either project) echoes it:
 
 ```
 $ orc memory related
-darapana-v2-overview  ->  production-notes  (-Users-you-Documents-GitHub-darapana)
+darapana-v2-overview  ->  production-notes  (~/Documents/GitHub/darapana)
 ```
 
 `--quiet-if-none` prints nothing when there's nothing to report, which

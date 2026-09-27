@@ -94,7 +94,7 @@ def cmd_memory_related(args):
         return
     for l in links:
         arrow = "->" if l["direction"] == "outgoing" else "<-"
-        print(f"{l['from_name']}  {arrow}  {l['other_name']}  ({l['other_project']})")
+        print(f"{l['from_name']}  {arrow}  {l['other_name']}  ({memory.readable_project(l['other_project'])})")
 
 
 def cmd_memory_suggest(args):
@@ -107,7 +107,8 @@ def cmd_memory_suggest(args):
         print("no unlinked candidates found")
         return
     for h in hits:
-        print(f"{h['score']:>3}%  {h['name']}  ({h['source_project'] or 'unknown project'})")
+        proj = memory.readable_project(h["source_project"]) if h["source_project"] else "unknown project"
+        print(f"{h['score']:>3}%  {h['name']}  ({proj})")
 
 
 def cmd_memory_browse(args):

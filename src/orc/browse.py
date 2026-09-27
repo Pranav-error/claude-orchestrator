@@ -86,7 +86,7 @@ def _draw_landing(stdscr, entries: list[dict], query: str, message: str):
     _safe_addstr(stdscr, footer_row, 0, footer, curses.A_DIM)
 
 
-def _preview_lines(entry: dict, graph: dict, suggestions: list[dict], width: int) -> list[str]:
+def _preview_lines(entry: dict, graph: dict, suggestions: list[dict], project_labels: dict, width: int) -> list[str]:
     lines: list[str] = [f"# {entry['name']}", ""]
     for line in entry["body"].strip().splitlines():
         lines.extend(textwrap.wrap(line, width) or [""])
@@ -104,7 +104,8 @@ def _preview_lines(entry: dict, graph: dict, suggestions: list[dict], width: int
     if suggestions:
         lines.append("Related, not linked (^L to link):")
         for s in suggestions:
-            proj = f", {s['source_project']}" if s["source_project"] else ""
+            label = project_labels.get(s["source_project"], "")
+            proj = f", {label}" if label else ""
             lines.append(f"  {s['score']:>3}%  {s['name']}{proj}")
 
     return lines
@@ -134,7 +135,7 @@ def _draw_list(stdscr, filtered: list[dict], selected: int, query: str, preview_
     _safe_addstr(stdscr, height - 1, 0, footer, curses.A_DIM)
 
 
-def _draw_link_picker(stdscr, from_name: str, candidates: list[dict], selected: int, query: str):
+def _draw_link_picker(stdscr, from_name: str, candidates: list[dict], selected: int, query: str, project_labels: dict):
     height, _width = stdscr.getmaxyx()
     _safe_addstr(stdscr, 0, 0, f"link '{from_name}' to: {query}_", curses.A_BOLD)
     for row in range(1, height - 1):
@@ -143,7 +144,8 @@ def _draw_link_picker(stdscr, from_name: str, candidates: list[dict], selected: 
             continue
         e = candidates[idx]
         marker = "▸ " if idx == selected else "  "
-        proj = f"  ({e['source_project']})" if e["source_project"] else ""
+        label = project_labels.get(e["source_project"], "")
+        proj = f"  ({label})" if label else ""
         attr = curses.A_REVERSE if idx == selected else 0
         _safe_addstr(stdscr, row, 0, f"{marker}{e['name']}{proj}", attr)
     _safe_addstr(stdscr, height - 1, 0, "↑↓ move  · type to search  · ⏎ confirm  · Esc cancel", curses.A_DIM)
@@ -166,6 +168,10 @@ def run(stdscr):
 
     entries = memory.list_all()
     graph = memory.build_link_graph()
+    # Precomputed once: readable_project() reads transcript files, so
+    # calling it per-row on every redraw (as the naive version did) would
+    # mean re-reading disk on every keystroke.
+    project_labels = {p: memory.readable_project(p) for p in {e["source_project"] for e in entries if e["source_project"]}}
     mode = "list"
     query = ""
     selected = 0
@@ -191,13 +197,13 @@ def run(stdscr):
                         suggestions = memory.suggest_related(current["stem"], top_n=3, entries=entries, graph=graph)
                     except ValueError:
                         suggestions = []
-                    preview_lines = _preview_lines(current, graph, suggestions, max(10, width - min(38, width // 3) - 3))
+                    preview_lines = _preview_lines(current, graph, suggestions, project_labels, max(10, width - min(38, width // 3) - 3))
                 _draw_list(stdscr, filtered, selected, query, preview_lines, message)
         else:
             candidates = _matches([e for e in entries if e["stem"] != link_from], link_query)
             link_selected = min(link_selected, max(0, len(candidates) - 1))
             from_entry = next((e for e in entries if e["stem"] == link_from), None)
-            _draw_link_picker(stdscr, from_entry["name"] if from_entry else link_from, candidates, link_selected, link_query)
+            _draw_link_picker(stdscr, from_entry["name"] if from_entry else link_from, candidates, link_selected, link_query, project_labels)
 
         stdscr.refresh()
         message = ""

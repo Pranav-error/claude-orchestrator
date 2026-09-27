@@ -8,6 +8,7 @@ so re-running sync never creates copies of something already imported.
 """
 
 import hashlib
+import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -183,6 +184,39 @@ def encode_project_dir(path) -> str:
     `source_project` frontmatter, so encoding a path the same way is how
     we match memories to a directory."""
     return str(Path(path).resolve()).replace("/", "-")
+
+
+def readable_project(encoded: str) -> str:
+    """A `source_project` value (Claude Code's dash-encoded dir name,
+    e.g. `-Users-you-Documents-GitHub-my-app`) is illegible as-is, and
+    can't be decoded by just swapping dashes back to slashes -- a literal
+    dash in a real directory name (`contract-review-saas`) looks
+    identical to an encoded slash, so the encoding is lossy in general.
+
+    Session transcripts under that same project directory carry the real
+    `cwd` un-encoded (this is the same trick usage.py's `_project_label`
+    uses), so this looks one up there instead of guessing from the
+    string. Display only -- matching memories to a directory still goes
+    through `encode_project_dir`/`_candidate_subdir_encodings`, which
+    resolve the ambiguity by walking the real filesystem instead.
+    """
+    proj_dir = config.CLAUDE_PROJECTS / encoded
+    if not proj_dir.exists():
+        return encoded
+    for jsonl_path in sorted(proj_dir.glob("*.jsonl")):
+        try:
+            with jsonl_path.open() as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    cwd = json.loads(line).get("cwd")
+                    if cwd:
+                        home = str(Path.home())
+                        return "~" + cwd[len(home):] if cwd.startswith(home) else cwd
+        except (OSError, json.JSONDecodeError):
+            continue
+    return encoded
 
 
 def _candidate_subdir_encodings(target: Path) -> set[str]:

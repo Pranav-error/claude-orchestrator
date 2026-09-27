@@ -1002,6 +1002,44 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(cd_lines, [], f"launcher must not cd (breaks cwd-relative commands): {cd_lines}")
 
 
+class MemoryReadableProjectTests(OrcTestCase):
+    """`memory.readable_project`: a `source_project` value is Claude
+    Code's dash-encoded dir name, which is lossy to reverse by just
+    swapping dashes back to slashes -- a literal dash in a real dir name
+    (`contract-review-saas`) is indistinguishable from an encoded slash.
+    This recovers the real path from a session transcript instead, the
+    same way usage.py's project-label logic does."""
+
+    def _write_transcript_with_cwd(self, encoded_dir: str, cwd: str):
+        d = config.CLAUDE_PROJECTS / encoded_dir
+        d.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "timestamp": "2026-09-01T00:00:00Z",
+            "cwd": cwd,
+            "message": {"model": "claude-opus-5", "usage": {"input_tokens": 1, "output_tokens": 1}},
+        }
+        (d / "s1.jsonl").write_text(json.dumps(entry) + "\n")
+
+    def test_recovers_the_real_path_from_a_transcript(self):
+        real_cwd = os.path.join(str(Path.home()), "Documents", "GitHub", "contract-review-saas")
+        encoded = memory.encode_project_dir(Path(real_cwd))
+        self._write_transcript_with_cwd(encoded, real_cwd)
+
+        self.assertEqual(memory.readable_project(encoded), "~/Documents/GitHub/contract-review-saas")
+
+    def test_falls_back_to_the_raw_encoded_name_without_a_transcript(self):
+        # No transcript exists for this encoded name at all.
+        self.assertEqual(memory.readable_project("-some-encoded-path"), "-some-encoded-path")
+
+    def test_falls_back_when_the_transcript_has_no_cwd_field(self):
+        d = config.CLAUDE_PROJECTS / "-proj-a"
+        d.mkdir(parents=True, exist_ok=True)
+        entry = {"timestamp": "2026-09-01T00:00:00Z", "message": {"model": "x", "usage": {"input_tokens": 1, "output_tokens": 1}}}
+        (d / "s1.jsonl").write_text(json.dumps(entry) + "\n")
+
+        self.assertEqual(memory.readable_project("-proj-a"), "-proj-a")
+
+
 class MemoryForProjectTests(OrcTestCase):
     def _mirror_from(self, project_dir: str, filename: str, name: str):
         """Write a source memory under a project dir named the way Claude
