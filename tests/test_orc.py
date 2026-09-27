@@ -35,6 +35,7 @@ class OrcTestCase(unittest.TestCase):
             for k in [
                 "DATA_ROOT", "MEMORY_DIR", "SKILLS_MANIFEST", "SKILLS_STORE", "AGENT_LOG_DIR",
                 "IDENTITY_LOG", "CLAUDE_PROJECTS", "CLAUDE_SKILLS", "LOCAL_IDENTITY_FILE",
+                "CLAUDE_PLUGINS_MANIFEST", "CLAUDE_PLUGINS_BLOCKLIST",
             ]
         }
 
@@ -47,6 +48,8 @@ class OrcTestCase(unittest.TestCase):
         config.CLAUDE_PROJECTS = root / "claude-home" / "projects"
         config.CLAUDE_SKILLS = root / "claude-home" / "skills"
         config.LOCAL_IDENTITY_FILE = root / "claude-home" / "identity.json"
+        config.CLAUDE_PLUGINS_MANIFEST = root / "claude-home" / "plugins" / "installed_plugins.json"
+        config.CLAUDE_PLUGINS_BLOCKLIST = root / "claude-home" / "plugins" / "blocklist.json"
 
         self._orig_settings_file = settings.SETTINGS_FILE
         settings.SETTINGS_FILE = root / "claude-home" / "settings.json"
@@ -393,6 +396,87 @@ class SkillsTests(OrcTestCase):
         self.assertTrue(rows["managed-one"]["managed"])
         self.assertFalse(rows["wild-one"]["managed"])
         self.assertTrue(rows["wild-one"]["enabled"])
+
+
+class PluginSkillTests(OrcTestCase):
+    """Skills bundled inside a `claude plugin install`-ed plugin (e.g.
+    ponytail's skills/ponytail/) -- read-only visibility in `orc skill
+    list`, deliberately not adoptable, since Claude's own plugin manager
+    already owns their lifecycle."""
+
+    def _install_fake_plugin(self, plugin_key: str, skill_names: list[str], version: str = "1.0.0"):
+        install_path = self.root / "plugin-cache" / plugin_key
+        for skill_name in skill_names:
+            skill_dir = install_path / "skills" / skill_name
+            skill_dir.mkdir(parents=True, exist_ok=True)
+            (skill_dir / "SKILL.md").write_text(f"---\nname: {skill_name}\n---\nbody")
+
+        config.CLAUDE_PLUGINS_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+        manifest = {}
+        if config.CLAUDE_PLUGINS_MANIFEST.exists():
+            manifest = json.loads(config.CLAUDE_PLUGINS_MANIFEST.read_text())
+        manifest.setdefault("plugins", {})[plugin_key] = [
+            {"scope": "user", "installPath": str(install_path), "version": version}
+        ]
+        config.CLAUDE_PLUGINS_MANIFEST.write_text(json.dumps(manifest))
+
+    def test_plugin_skills_appear_in_list_skills(self):
+        self._install_fake_plugin("ponytail@ponytail", ["ponytail", "ponytail-review"], version="4.10.0")
+
+        rows = {r["name"]: r for r in skills.list_skills()}
+        self.assertIn("ponytail", rows)
+        self.assertEqual(rows["ponytail"]["origin"], "plugin")
+        self.assertEqual(rows["ponytail"]["version"], "4.10.0")
+        self.assertEqual(rows["ponytail"]["source"], "plugin:ponytail@ponytail")
+        self.assertFalse(rows["ponytail"]["managed"])
+        self.assertIn("ponytail-review", rows)
+
+    def test_plugin_skill_directory_without_skill_md_is_not_a_skill(self):
+        # e.g. the plugin's hooks/, scripts/, tests/ directories -- only a
+        # real skill (one with SKILL.md) under skills/ counts.
+        install_path = self.root / "plugin-cache" / "noise"
+        (install_path / "skills" / "not-a-skill").mkdir(parents=True)
+        (install_path / "skills" / "not-a-skill" / "README.md").write_text("not a skill")
+        config.CLAUDE_PLUGINS_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+        config.CLAUDE_PLUGINS_MANIFEST.write_text(json.dumps({
+            "plugins": {"noise@mkt": [{"scope": "user", "installPath": str(install_path), "version": "1.0.0"}]}
+        }))
+
+        self.assertEqual(skills.plugin_skill_rows(), [])
+
+    def test_blocked_plugin_shows_as_disabled_not_enabled(self):
+        self._install_fake_plugin("ponytail@ponytail", ["ponytail"])
+        config.CLAUDE_PLUGINS_BLOCKLIST.parent.mkdir(parents=True, exist_ok=True)
+        config.CLAUDE_PLUGINS_BLOCKLIST.write_text(json.dumps({"plugins": [{"plugin": "ponytail@ponytail"}]}))
+
+        rows = {r["name"]: r for r in skills.list_skills()}
+        self.assertFalse(rows["ponytail"]["enabled"])
+
+    def test_adopt_on_a_plugin_skill_raises_a_clear_error_not_a_generic_one(self):
+        self._install_fake_plugin("ponytail@ponytail", ["ponytail"])
+        with self.assertRaises(ValueError) as ctx:
+            skills.adopt("ponytail")
+        self.assertIn("plugin", str(ctx.exception).lower())
+
+    def test_manually_adopted_skill_of_the_same_name_is_not_duplicated(self):
+        # If a name exists both as an orc-managed skill and a plugin
+        # skill, the orc-managed row wins -- list_skills() must not show
+        # the same name twice.
+        self._install_fake_plugin("ponytail@ponytail", ["ponytail"])
+        self._make_live_skill_for_adopt("ponytail")
+        skills.adopt("ponytail")
+
+        rows = [r for r in skills.list_skills() if r["name"] == "ponytail"]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["origin"], "orc")
+
+    def _make_live_skill_for_adopt(self, name: str):
+        d = config.CLAUDE_SKILLS / name
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "SKILL.md").write_text("content")
+
+    def test_no_plugins_manifest_returns_empty(self):
+        self.assertEqual(skills.plugin_skill_rows(), [])
 
 
 class AgentLogTests(OrcTestCase):

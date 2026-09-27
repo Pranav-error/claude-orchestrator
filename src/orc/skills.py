@@ -15,6 +15,7 @@ import json
 import shutil
 import subprocess
 from datetime import datetime, timezone
+from pathlib import Path
 
 from . import config, identity
 
@@ -39,6 +40,58 @@ def _who() -> str:
     return cur["label"] if cur else "unknown"
 
 
+def _blocked_plugin_keys() -> set:
+    if not config.CLAUDE_PLUGINS_BLOCKLIST.exists():
+        return set()
+    try:
+        data = json.loads(config.CLAUDE_PLUGINS_BLOCKLIST.read_text())
+    except (OSError, json.JSONDecodeError):
+        return set()
+    return {p.get("plugin", "") for p in data.get("plugins", [])}
+
+
+def plugin_skill_rows() -> list[dict]:
+    """Skills bundled inside a `claude plugin install`-ed plugin, e.g.
+    ponytail's `skills/ponytail/`. These are deliberately kept out of
+    `adopt`/`enable`/`disable`: Claude Code's own plugin manager already
+    owns their lifecycle (version, update, blocklist) via
+    `installed_plugins.json`, and copying one into orc's skill store on
+    top of that would just be a second, driftable copy of something
+    already tracked -- the exact duplication `adopt`/`install` exist to
+    avoid for hand-installed skills. This is read-only visibility, not
+    management.
+    """
+    if not config.CLAUDE_PLUGINS_MANIFEST.exists():
+        return []
+    try:
+        manifest = json.loads(config.CLAUDE_PLUGINS_MANIFEST.read_text())
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    blocked = _blocked_plugin_keys()
+    rows = []
+    for plugin_key, install_records in manifest.get("plugins", {}).items():
+        if not install_records:
+            continue
+        record = install_records[0]  # multiple scopes (user/project) can list the same plugin; the first is enough to locate its files
+        install_path = Path(record.get("installPath", ""))
+        skills_dir = install_path / "skills"
+        if not skills_dir.is_dir():
+            continue
+        for skill_dir in sorted(skills_dir.glob("*")):
+            if not (skill_dir / "SKILL.md").exists():
+                continue
+            rows.append({
+                "name": skill_dir.name,
+                "source": f"plugin:{plugin_key}",
+                "version": record.get("version", "unknown"),
+                "managed": False,
+                "enabled": plugin_key not in blocked,
+                "origin": "plugin",
+            })
+    return rows
+
+
 def list_skills() -> list[dict]:
     manifest = _load()["skills"]
     live = {p.name for p in config.CLAUDE_SKILLS.glob("*") if p.is_dir() or p.is_symlink()} if config.CLAUDE_SKILLS.exists() else set()
@@ -55,10 +108,16 @@ def list_skills() -> list[dict]:
             "version": entry.get("version", "unknown"),
             "managed": True,
             "enabled": is_symlinked_to_store,
+            "origin": "orc",
         })
 
     for name in sorted(live - seen):
-        rows.append({"name": name, "source": "unmanaged", "version": "-", "managed": False, "enabled": True})
+        rows.append({"name": name, "source": "unmanaged", "version": "-", "managed": False, "enabled": True, "origin": "unmanaged"})
+
+    for row in plugin_skill_rows():
+        if row["name"] not in seen:  # a plugin skill someone also `adopt`-ed manually stays shown as orc-managed, not duplicated
+            rows.append(row)
+            seen.add(row["name"])
 
     return sorted(rows, key=lambda r: r["name"])
 
@@ -67,6 +126,12 @@ def adopt(name: str, source: str = "unknown") -> dict:
     """Bring an already-installed, unmanaged skill under registry control."""
     live_path = config.CLAUDE_SKILLS / name
     if not live_path.exists() or live_path.is_symlink():
+        if any(r["name"] == name for r in plugin_skill_rows()):
+            raise ValueError(
+                f"{name}: bundled in a Claude Code plugin, not a plain skill directory — "
+                f"orc can't adopt it (Claude's plugin manager already owns its lifecycle); "
+                f"use `claude plugin` to update/remove it instead"
+            )
         raise ValueError(f"{name}: not a plain installed directory at {live_path} — nothing to adopt")
 
     config.SKILLS_STORE.mkdir(parents=True, exist_ok=True)

@@ -499,6 +499,29 @@ Because the content lives in your data repo now, `orc sync` carries
 adopted skills across machines — no more re-downloading the same
 GitHub repo by hand on every new laptop.
 
+**Skills that came from `claude plugin install` show up too, marked
+`plugin`** — read straight from Claude Code's own
+`~/.claude/plugins/installed_plugins.json`, not adopted into orc's
+store:
+
+```
+$ orc skill list
+name             status      source                          version
+ponytail         plugin      plugin:ponytail@ponytail         4.10.0
+ponytail-review  plugin      plugin:ponytail@ponytail         4.10.0
+banner-design     enabled     github.com/example/banner-skill  a1b2c3d
+```
+
+This is deliberately read-only: `orc skill adopt`/`enable`/`disable`
+refuse a plugin-provided skill with a clear error rather than a
+generic "nothing to adopt" one, because Claude's plugin manager already
+owns that skill's version and update path — copying it into orc's store
+on top of that would just be a second copy that can silently drift from
+the one `claude plugin update` actually keeps current. Manage those
+with `claude plugin` (enable/disable/uninstall), not `orc skill`; a
+`status: blocked` row means the plugin is in your `blocklist.json`, not
+that anything is wrong with orc's view of it.
+
 ### Ecosystem
 
 `orc ecosystem` prints a survey of widely-adopted third-party Claude

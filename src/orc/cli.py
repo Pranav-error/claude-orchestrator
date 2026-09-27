@@ -169,12 +169,23 @@ def cmd_skill_list(args):
     if not rows:
         print("no skills found")
         return
-    print(f"{'name':<24}{'status':<10}{'source':<45}{'version'}")
+    # A field wider than its declared column would otherwise glue directly
+    # onto the next one with no separator (plugin sources like
+    # "plugin:figma-generative-plugins@claude-plugins-official" ran well
+    # past 45 chars in practice) -- padding to at least width+1 keeps a
+    # gap even when a column can't align, instead of only when it can.
+    def col(text: str, width: int) -> str:
+        return text.ljust(max(width, len(text) + 1))
+
+    print(f"{col('name', 24)}{col('status', 10)}{col('source', 45)}version")
     for r in rows:
-        status = "enabled" if r["enabled"] else "disabled"
-        if not r["managed"]:
+        if r.get("origin") == "plugin":
+            status = "plugin" if r["enabled"] else "blocked"
+        elif not r["managed"]:
             status = "unmanaged"
-        print(f"{r['name']:<24}{status:<10}{r['source']:<45}{r['version']}")
+        else:
+            status = "enabled" if r["enabled"] else "disabled"
+        print(f"{col(r['name'], 24)}{col(status, 10)}{col(r['source'], 45)}{r['version']}")
 
 
 def cmd_skill_adopt(args):

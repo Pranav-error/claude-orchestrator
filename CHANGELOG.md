@@ -5,6 +5,7 @@ All notable changes to this project are documented here. Format loosely follows 
 ## [Unreleased]
 
 ### Added
+- **`orc skill list` now shows skills bundled inside a `claude plugin install`-ed plugin**, read straight from Claude Code's own `installed_plugins.json` and marked `plugin` (or `blocked` if it's in `blocklist.json`). Read-only by design — `adopt`/`enable`/`disable` refuse a plugin-provided skill with a clear error, since Claude's plugin manager already owns its version/update path and a second, orc-managed copy would just drift from it.
 - **`orc memory browse`** — an interactive terminal browser over the memory store: type-to-search list, a live preview pane (file body, existing `[[links]]`, and similarity-based "related, not linked" nominations), and `^L` to manually link the selected memory to another one. Needs a real terminal (curses), so it's not runnable through `!orc`/`/orc`.
 - **`orc memory suggest "<name>"`** — candidates worth manually `[[linking]]` a memory to, ranked by word overlap with every other unlinked memory. A nomination for a human to confirm, never applied automatically.
 - **`orc memory related [--quiet-if-none]`** — already-confirmed `[[links]]` that cross a project boundary, for whatever project the cwd is in. Safe to wire into a `SessionStart` hook (see README) since it only ever echoes deliberate `orc memory link` calls, never a guess.
@@ -15,6 +16,7 @@ All notable changes to this project are documented here. Format loosely follows 
 ### Fixed
 - **`orc usage report --by day` bucketed by UTC date, not local date** — transcript timestamps are UTC, and bucketing by `ts.date()` directly meant "today" could show no row for hours after local midnight in any timezone ahead of UTC. Day-grouping now converts to local time first.
 - **`orc memory suggest`/`related` showed the raw dash-encoded project name** (e.g. `-Users-you-Documents-GitHub-my-app`) instead of a readable path. `memory.readable_project` recovers the real path from a session transcript instead of guessing by swapping dashes back to slashes, which is lossy when a real directory name contains a literal dash.
+- **`orc skill list`'s columns glued together with no separator** whenever a name/source exceeded its declared column width — real plugin sources like `plugin:figma-generative-plugins@claude-plugins-official` ran well past 45 characters. Columns now pad to at least width+1 instead of only padding when the value already fits.
 
 ## [0.2.0] - 2026-09-21
 

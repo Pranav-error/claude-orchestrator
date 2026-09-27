@@ -29,6 +29,8 @@ IDENTITY_LOG = AGENT_LOG_DIR / "identity-log.jsonl"
 CLAUDE_HOME = Path.home() / ".claude"
 CLAUDE_PROJECTS = CLAUDE_HOME / "projects"
 CLAUDE_SKILLS = CLAUDE_HOME / "skills"
+CLAUDE_PLUGINS_MANIFEST = CLAUDE_HOME / "plugins" / "installed_plugins.json"
+CLAUDE_PLUGINS_BLOCKLIST = CLAUDE_HOME / "plugins" / "blocklist.json"
 
 # Machine-local, never synced: which account is active on THIS machine right now.
 LOCAL_IDENTITY_FILE = Path.home() / ".claude-orchestrator-identity.json"
