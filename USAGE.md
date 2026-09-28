@@ -93,6 +93,11 @@ Two different mechanisms, for two different needs:
   table above: `!orc usage report`, `!orc memory search foo`. Doesn't
   work for the interactive menu — a chat turn can't hold a live,
   numbered back-and-forth with a program waiting on keyboard input.
+  This is also the cheaper of the two mechanisms: it's a plain shell
+  passthrough, so it doesn't load `commands/orc.md` into context or
+  spend a model turn interpreting anything. For a quick check where you
+  don't need Claude to read and act on the result, prefer `!orc status`
+  over `/orc status`.
 
 - **`/orc <words>`** — a slash command that lets Claude itself map plain
   words onto the right flag command and run it for you. Comes with the

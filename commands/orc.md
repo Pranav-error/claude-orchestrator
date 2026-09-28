@@ -2,39 +2,39 @@
 description: Run claude-orchestrator (memory/skills/usage/identity/sync). Usage examples: /orc, /orc status, /orc search gsoc, /orc usage, /orc identity friend-x, /orc skills, /orc sync
 ---
 
-`orc` is a personal tool (`~/Documents/GitHub/claude-orchestrator`) for cross-account/cross-machine memory, skills, usage tracking, and sync. It has an interactive menu, but that menu can't be driven from inside a chat turn — so this command maps what the user typed after `/orc` onto the equivalent one-shot flag command and runs it with Bash, then reports the result plainly (don't over-narrate).
+`orc` (`~/Documents/GitHub/claude-orchestrator`) manages cross-account/cross-machine memory, skills, usage, and sync. Its interactive menu can't run in a chat turn, so map the argument text below onto the matching flag command, run it once with Bash, and add only a short caption — don't over-narrate.
 
 User's argument text: $ARGUMENTS
 
-Map it like this (case-insensitively, first word decides):
+Map case-insensitively, first word decides:
 
-- empty, or "status" → `orc status` — a single call, already combining identity + today's usage + model. Run it alone; don't also run `orc identity show` or `orc usage report` on top of it (that second round trip is exactly the extra-token cost this single command exists to avoid), and don't re-summarize its output — a one-line caption is enough.
+- empty, or "status" → `orc status` (identity + today's usage + model, one call). Don't also run `orc identity show`/`orc usage report` on top of it, and don't re-summarize the output.
 - "search <query>" or "find <query>" → `orc memory search "<query>"`
 - "links <name>" → `orc memory links "<name>"`
 - "link <from> <to>" → `orc memory link "<from>" "<to>"`
 - "suggest <name>" or "related to <name>" → `orc memory suggest "<name>"`
-- "related" (no more words) → `orc memory related`
-- "browse" → don't run this via Bash — `orc memory browse` is an interactive curses UI with no tty inside a chat turn, so it would just hang. Tell the user to run `orc memory browse` themselves in a real terminal.
+- "related" alone → `orc memory related`
+- "browse" → don't run via Bash (no tty, it'd hang) — tell the user to run `orc memory browse` themselves.
 - "sync-memory" or "sync memory" → `orc memory sync`
 - "usage" [optional: "by day|project|model|identity"] → `orc usage report --by <that, default day>`
-- "identity" with no more words → `orc identity show`
-- "identity <label>" or "switch <label>" or "account <label>" → `orc identity set "<label>"`
+- "identity" alone → `orc identity show`
+- "identity <label>" / "switch <label>" / "account <label>" → `orc identity set "<label>"`
 - "identity log" or "accounts" → `orc identity log`
 - "skills" or "skill list" → `orc skill list`
 - "adopt <name> [source]" → `orc skill adopt "<name>"` (add `--source "<source>"` if given)
 - "enable <name>" → `orc skill enable "<name>"`
 - "disable <name>" → `orc skill disable "<name>"`
 - "log <task> <success|failed|partial> [notes...]" → `orc agent log "<task>" <outcome> --notes "<notes>"`
-- "runs" or "agent log" (no more words) → `orc agent list`
+- "runs" or "agent log" alone → `orc agent list`
 - "sync" or "sync status" → `orc sync status`
 - "push" or "sync push" → `orc sync push`
 - "pull" or "sync pull" → `orc sync pull`
-- "dashboard" or "dash" → `orc dashboard --color always` (see note below on why `--color always`)
-- "config" or "preferences" or "theme <name>" or "set <key> <value>" → `orc config show`, or `orc config set <key> <value>` if the user named a key/value (valid keys: theme, icons, usage_days, color; themes: amber, ocean, sunset, mono)
-- anything else / unclear → don't guess destructively; show the user the option list above and ask which one they meant.
+- "dashboard" or "dash" → `orc dashboard --color always` (see note below)
+- "config" / "preferences" / "theme <name>" / "set <key> <value>" → `orc config show`, or `orc config set <key> <value>` if a key/value was named (keys: theme, icons, usage_days, color; themes: amber, ocean, sunset, mono)
+- anything else → don't guess destructively; show the options above and ask which one was meant.
 
-Run the mapped command with Bash from any directory (it's a full path or already on PATH as `orc`). If `orc` isn't found on PATH, fall back to running it via `~/Documents/GitHub/claude-orchestrator/bin/orc <args>` directly.
+Run via Bash from any directory (`orc` is on PATH; fall back to `~/Documents/GitHub/claude-orchestrator/bin/orc <args>` if not).
 
-**Never re-print the raw output yourself, and never wrap it in a fenced code block.** The Bash tool's own result panel is the correct place for it — Claude Code renders that panel's ANSI color and box-drawing characters correctly, but a markdown code fence in your reply does not interpret ANSI at all, so retyping colored output into one would show broken escape-code noise (`\033[38;5;208m` etc.) instead of the colors. Let the tool result stand as the visual; your job is a short one- or two-line caption underneath it (what it shows, anything notable) — not a restatement of its contents, and never a substitute for it.
+Never re-print or code-fence the raw output — a fence doesn't render ANSI, so colored/box-drawn output would show as broken escape codes instead. Let the Bash result panel be the visual; add one short caption line.
 
-**Always pass `--color always` on the dashboard command specifically.** Bash tool output isn't a real tty, so `orc`'s auto-detection would otherwise silently fall back to plain text here even though the same command shows full color in a real terminal. `--color always` (or `orc config set color always` to make it the persistent default) makes `/orc dashboard` and `!orc dashboard` render identically to running it directly in a terminal — but only inside the tool result panel itself, not in anything you retype.
+Pass `--color always` on `dashboard` specifically: Bash's stdout isn't a real tty, so `orc` would otherwise silently fall back to plain text there even though a real terminal shows full color.

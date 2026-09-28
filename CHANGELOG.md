@@ -4,6 +4,9 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
+### Changed
+- **Tightened `commands/orc.md`'s wording (~32% smaller)** — this file gets loaded in full on every `/orc` invocation regardless of what's typed after it, so its size is a fixed per-call cost. No mapping rule or behavior changed, just wording. For a bare status check with no need for Claude to act on the result, `!orc status` (shell passthrough) skips this cost entirely — it doesn't load the command file or spend a model turn at all.
+
 ### Added
 - **`orc skill list` now shows skills bundled inside a `claude plugin install`-ed plugin**, read straight from Claude Code's own `installed_plugins.json` and marked `plugin` (or `blocked` if it's in `blocklist.json`). Read-only by design — `adopt`/`enable`/`disable` refuse a plugin-provided skill with a clear error, since Claude's plugin manager already owns its version/update path and a second, orc-managed copy would just drift from it.
 - **`orc memory browse`** — an interactive terminal browser over the memory store: type-to-search list, a live preview pane (file body, existing `[[links]]`, and similarity-based "related, not linked" nominations), and `^L` to manually link the selected memory to another one. Needs a real terminal (curses), so it's not runnable through `!orc`/`/orc`.
