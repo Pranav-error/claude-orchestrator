@@ -139,6 +139,8 @@ orc dashboard
 /plugin install claude-orchestrator@claude-orchestrator
 ```
 
+**Updating:** if you're on the git-clone install, `orc update` runs `git pull --ff-only` in that checkout. The `pip`/`pipx` install updates the normal way (`pip install --upgrade claude-orc`). These are two genuinely separate copies of the code if you installed both the CLI and the plugin — `orc update` only touches the git checkout, so if `which orc` resolves to the plugin's own cached copy instead, update that one with `claude plugin update claude-orchestrator@claude-orchestrator` (`orc update` tells you this itself when both are installed).
+
 ## What it does
 
 | | |

@@ -3,7 +3,7 @@ import json
 import sys
 from datetime import date
 
-from . import __version__, agentlog, banner, config, dashboard, ecosystem, identity, init, memory, menu, settings, skills, sync, usage
+from . import __version__, agentlog, banner, config, dashboard, ecosystem, identity, init, memory, menu, settings, skills, sync, update, usage
 
 
 def cmd_identity_set(args):
@@ -321,12 +321,25 @@ def cmd_version(args):
     print(f"data:    {config.DATA_ROOT}")
 
 
+def cmd_update(args):
+    result = update.apply()
+    print(result["detail"])
+    note = update.plugin_install_note()
+    if note:
+        print(note)
+    if result["ok"] and result["detail"] != "already up to date":
+        print("run `orc version` in a new shell/session to confirm the updated version")
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="orc", description="Personal control plane for a multi-account Claude Code setup.")
     sub = p.add_subparsers(dest="command", required=False)
 
     version_p = sub.add_parser("version", help="show version, install paths, and the startup banner")
     version_p.set_defaults(func=cmd_version)
+
+    update_p = sub.add_parser("update", help="git pull --ff-only the tool's own code checkout")
+    update_p.set_defaults(func=cmd_update)
 
     init_p = sub.add_parser("init", help="bootstrap a private data repo (run this first, once)")
     init_p.set_defaults(func=cmd_init)

@@ -39,6 +39,7 @@ and don't fabricate output.
 - "switch to my other account" / "I'm on a client's account now" → `orc identity set "<label>"`
 - "give me a status/overview/dashboard" → `orc dashboard --color always`
 - "sync my setup" → `orc sync status`, then `push`/`pull` as appropriate
+- "update orc" / "get the latest version" → `orc update` (updates the code checkout; distinct from `orc sync`, which is the data repo — mention both if the user has installed the Claude Code plugin too, since that's a separate copy `orc update` doesn't touch)
 
 ## How to run it
 

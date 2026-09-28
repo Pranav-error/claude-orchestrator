@@ -132,6 +132,62 @@ def memory_links():
                 print(f"error: {e}")
 
 
+def browse_memory():
+    from . import browse
+    browse.main()
+
+
+def suggest_links():
+    _header("Suggest links")
+    query = input("Suggest candidates for: ").strip()
+    if not query:
+        return
+    try:
+        hits = memory.suggest_related(query)
+    except memory.AmbiguousMemoryQuery as e:
+        shown = e.matches[:15]
+        print(f"\n{len(e.matches)} memories match {query!r} — pick one:")
+        for i, m in enumerate(shown, 1):
+            print(f"  {i}. {m}")
+        choice = input("\n> ").strip()
+        try:
+            query = shown[int(choice) - 1]
+        except (ValueError, IndexError):
+            print("cancelled")
+            return
+        hits = memory.suggest_related(query)
+    except ValueError as e:
+        print(f"error: {e}")
+        return
+
+    if not hits:
+        print("no unlinked candidates found")
+        return
+    for h in hits:
+        proj = f"  ({memory.readable_project(h['source_project'])})" if h["source_project"] else ""
+        print(f"  {h['score']:>3}%  {h['name']}{proj}")
+
+    if input("\nLink one of these? (y/n) ").strip().lower() == "y":
+        to_query = input("Link to: ").strip()
+        if to_query:
+            try:
+                result = memory.add_link(query, to_query)
+                print("already linked" if result["already_linked"] else f"linked -> {result['to']}")
+            except ValueError as e:
+                print(f"error: {e}")
+
+
+def related_projects():
+    _header("Related projects")
+    links = memory.cross_project_links()
+    if not links:
+        print("no cross-project [[links]] recorded for this project yet")
+        return
+    for l in links:
+        arrow = "->" if l["direction"] == "outgoing" else "<-"
+        print(f"{l['from_name']}  {arrow}  {l['other_name']}  ({memory.readable_project(l['other_project'])})")
+
+
 def sync_memory():
     _header("Sync memory")
     result = memory.sync()
@@ -155,7 +211,12 @@ def manage_skills():
     _header("Skills")
     rows = skills.list_skills()
     for i, r in enumerate(rows, 1):
-        status = "enabled" if r["enabled"] else ("disabled" if r["managed"] else "unmanaged")
+        if r.get("origin") == "plugin":
+            status = "plugin" if r["enabled"] else "blocked"
+        elif not r["managed"]:
+            status = "unmanaged"
+        else:
+            status = "enabled" if r["enabled"] else "disabled"
         print(f"{i}. {r['name']:<24} [{status}]")
 
     print("\na) adopt an unmanaged skill   e) enable   d) disable   (enter to go back)")
@@ -252,6 +313,9 @@ MENU = [
     ("Show/add memory links", memory_links),
     ("Memory graph (most-connected)", memory_graph),
     ("Memories from this directory", memory_here),
+    ("Browse memory (interactive)", browse_memory),
+    ("Suggest links for a memory", suggest_links),
+    ("Related projects (cross-project links)", related_projects),
     ("Sync memory", sync_memory),
     ("Manage skills", manage_skills),
     ("Browse third-party skills (ecosystem)", browse_ecosystem),

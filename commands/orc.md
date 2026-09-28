@@ -31,6 +31,7 @@ Map case-insensitively, first word decides:
 - "pull" or "sync pull" → `orc sync pull`
 - "dashboard" or "dash" → `orc dashboard --color always` (see note below)
 - "config" / "preferences" / "theme <name>" / "set <key> <value>" → `orc config show`, or `orc config set <key> <value>` if a key/value was named (keys: theme, icons, usage_days, color; themes: amber, ocean, sunset, mono)
+- "update" → `orc update` (updates the tool's own code checkout, not the data repo — that's `sync`)
 - anything else → don't guess destructively; show the options above and ask which one was meant.
 
 Run via Bash from any directory (`orc` is on PATH; fall back to `~/Documents/GitHub/claude-orchestrator/bin/orc <args>` if not).

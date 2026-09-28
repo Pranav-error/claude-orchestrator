@@ -83,6 +83,7 @@ substring that matches several options lists them rather than guessing
 | `orc config show` | Print your saved theme/icons/usage-window/color preferences |
 | `orc config set <key> <value>` | Persist a preference — `theme` (amber/ocean/sunset/mono), `icons` (true/false), `usage_days`, `color` (auto/always/never), `banner` (true/false) |
 | `orc version` | Show the startup banner, version, and install/data paths |
+| `orc update` | `git pull --ff-only` the tool's own code checkout (not the same thing as `orc sync`, which is your data repo) |
 
 ### 3. From inside a Claude Code chat prompt
 
@@ -262,6 +263,10 @@ $ orc memory suggest darapana-v2-overview
  41%  production-notes           (~/Documents/GitHub/darapana)
  33%  registration-fixes         (~/Documents/GitHub/darapana)
 ```
+
+The interactive menu has both of these too — "Suggest links for a
+memory" and "Related projects (cross-project links)" — alongside "Browse
+memory (interactive)", so none of this requires the flag-command form.
 
 (The project shown in parentheses is recovered from a session
 transcript under that memory's source project, not just the dashes in
@@ -573,6 +578,38 @@ pulled: Fast-forward, 3 files changed
 Wire it to Claude Code's own `SessionStart`/`SessionEnd` hooks (see
 README) and this becomes fully automatic — pull at the start of every
 session, push at the end, regardless of which account is logged in.
+
+### Update
+
+`orc sync` keeps your *data* (memory, skills registry, agent log)
+current across machines. `orc update` is the separate, easy-to-confuse-
+with-it command for updating the *tool's own code* — a plain `git pull
+--ff-only` in `CODE_ROOT` (the git-clone install; see Install in
+README):
+
+```
+$ orc update
+Updating a1b2c3d..e5f6a7b
+Fast-forward
+ src/orc/memory.py | 34 +++++++++++++
+run `orc version` in a new shell/session to confirm the updated version
+```
+
+Refuses (rather than guessing) if the checkout has uncommitted local
+changes, or if it isn't a git checkout at all — the `pip`/`pipx` install
+has no git history to pull, so that case just points at `pip install
+--upgrade claude-orc` instead.
+
+**The two install paths (CLI git-clone vs. Claude Code plugin) are
+separate code copies**, and this was a real source of confusion:
+installing the plugin (`claude plugin install
+claude-orchestrator@claude-orchestrator`) copies the code into
+`~/.claude/plugins/cache/...`, which `orc update` never touches. If
+`which orc` happens to resolve there instead of your checkout, `orc
+update` says so and tells you to run `claude plugin update
+claude-orchestrator@claude-orchestrator` instead — check `which orc` if
+a command you just added doesn't show up in the interactive menu after
+updating.
 
 ### Dashboard
 

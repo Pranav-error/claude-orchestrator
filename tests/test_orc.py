@@ -19,7 +19,7 @@ import copy
 import io
 import subprocess
 
-from orc import agentlog, banner, config, dashboard, ecosystem, identity, init, memory, menu, settings, skills, sync, usage  # noqa: E402
+from orc import agentlog, banner, config, dashboard, ecosystem, identity, init, memory, menu, settings, skills, sync, update, usage  # noqa: E402
 from orc.cli import main as cli_main  # noqa: E402
 
 
@@ -35,7 +35,7 @@ class OrcTestCase(unittest.TestCase):
             for k in [
                 "DATA_ROOT", "MEMORY_DIR", "SKILLS_MANIFEST", "SKILLS_STORE", "AGENT_LOG_DIR",
                 "IDENTITY_LOG", "CLAUDE_PROJECTS", "CLAUDE_SKILLS", "LOCAL_IDENTITY_FILE",
-                "CLAUDE_PLUGINS_MANIFEST", "CLAUDE_PLUGINS_BLOCKLIST",
+                "CLAUDE_PLUGINS_MANIFEST", "CLAUDE_PLUGINS_BLOCKLIST", "CODE_ROOT",
             ]
         }
 
@@ -771,6 +771,87 @@ class SyncTests(OrcTestCase):
         self.assertFalse(s["dirty"])
 
 
+class UpdateTests(OrcTestCase):
+    """`orc update`: a plain `git pull --ff-only` in CODE_ROOT (the tool's
+    own code checkout), not to be confused with `orc sync`'s DATA_ROOT.
+    Same real-git-over-a-local-remote approach as SyncTests, so this
+    proves an actual pull happens rather than just that git ran."""
+
+    def _git(self, cwd, *args, check=True):
+        return subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True, check=check)
+
+    def setUp(self):
+        super().setUp()
+        world = self.root / "update-world"
+        world.mkdir()
+
+        remote = world / "remote.git"
+        subprocess.run(["git", "init", "--bare", "-b", "main", str(remote)], capture_output=True, text=True, check=True)
+
+        seed = world / "seed"
+        self._git(world, "init", "-b", "main", str(seed))
+        (seed / "README.md").write_text("v1\n")
+        self._git(seed, "add", "-A")
+        self._git(seed, "commit", "-m", "init")
+        self._git(seed, "remote", "add", "origin", str(remote))
+        self._git(seed, "push", "-u", "origin", "main")
+        self.seed = seed
+        self.remote = remote
+
+        self.checkout = world / "checkout"
+        self._git(world, "clone", str(remote), str(self.checkout))
+        config.CODE_ROOT = self.checkout
+
+    def test_apply_pulls_a_new_commit_from_the_remote(self):
+        (self.seed / "README.md").write_text("v2\n")
+        self._git(self.seed, "commit", "-am", "update")
+        self._git(self.seed, "push")
+
+        result = update.apply()
+        self.assertTrue(result["ok"], result.get("detail"))
+        self.assertEqual((self.checkout / "README.md").read_text(), "v2\n")
+
+    def test_apply_with_nothing_new_reports_already_up_to_date(self):
+        result = update.apply()
+        self.assertTrue(result["ok"])
+        self.assertIn("up to date", result["detail"])
+
+    def test_apply_refuses_with_uncommitted_local_changes(self):
+        (self.checkout / "README.md").write_text("dirty\n")
+        result = update.apply()
+        self.assertFalse(result["ok"])
+        self.assertIn("uncommitted", result["detail"])
+
+    def test_apply_on_a_non_git_directory_reports_pip_instead_of_crashing(self):
+        config.CODE_ROOT = self.root / "not-a-git-repo"
+        config.CODE_ROOT.mkdir()
+        result = update.apply()
+        self.assertFalse(result["is_git"])
+        self.assertFalse(result["ok"])
+        self.assertIn("pip install --upgrade", result["detail"])
+
+    def test_is_git_checkout(self):
+        self.assertTrue(update.is_git_checkout())
+        config.CODE_ROOT = self.root  # a real dir, but not itself a git repo
+        self.assertFalse(update.is_git_checkout())
+
+    def test_plugin_install_note_absent_when_not_installed_as_a_plugin(self):
+        self.assertIsNone(update.plugin_install_note())
+
+    def test_plugin_install_note_present_when_also_installed_as_a_plugin(self):
+        config.CLAUDE_PLUGINS_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+        config.CLAUDE_PLUGINS_MANIFEST.write_text(json.dumps({
+            "plugins": {
+                "claude-orchestrator@claude-orchestrator": [
+                    {"scope": "user", "installPath": "/wherever", "version": "0.1.0"}
+                ]
+            }
+        }))
+        note = update.plugin_install_note()
+        self.assertIsNotNone(note)
+        self.assertIn("claude plugin update claude-orchestrator@claude-orchestrator", note)
+
+
 class SettingsTests(OrcTestCase):
     def test_load_with_no_file_returns_defaults(self):
         s = settings.load()
@@ -1496,6 +1577,75 @@ class MenuTests(OrcTestCase):
              unittest.mock.patch("builtins.input", side_effect=["test", "99"]):
             menu.memory_links()
         self.assertIn("cancelled", buf.getvalue())
+
+    def test_suggest_links_shows_ranked_candidates_and_can_link(self):
+        self.write_memory_file("proj-a", "target.md", "Target", "project", "clerk supabase vercel target-only")
+        self.write_memory_file("proj-a", "close.md", "Close", "project", "clerk supabase vercel close-only")
+        memory.sync()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), \
+             unittest.mock.patch("builtins.input", side_effect=["target", "y", "close"]):
+            menu.suggest_links()
+        output = buf.getvalue()
+        self.assertIn("Close", output)
+        self.assertIn("linked -> close", output)
+        self.assertIn("[[close]]", (config.MEMORY_DIR / "project" / "target.md").read_text())
+
+    def test_suggest_links_ambiguous_offers_a_numbered_picker(self):
+        self.write_memory_file("proj-a", "one.md", "Test Alpha", "project", "clerk supabase vercel alpha-word")
+        self.write_memory_file("proj-a", "two.md", "Test Beta", "project", "clerk supabase vercel beta-word")
+        memory.sync()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), \
+             unittest.mock.patch("builtins.input", side_effect=["test", "1", "n"]):
+            menu.suggest_links()
+        self.assertIn("2 memories match 'test'", buf.getvalue())
+
+    def test_related_projects_prints_cross_project_links(self):
+        repo_a, repo_b = self.root / "repo-a", self.root / "repo-b"
+        repo_a.mkdir()
+        repo_b.mkdir()
+        old_cwd = os.getcwd()
+        os.chdir(repo_a)
+        try:
+            self.write_memory_file(memory.encode_project_dir(repo_a), "a.md", "A Note", "project", "note from a")
+            self.write_memory_file(memory.encode_project_dir(repo_b), "b.md", "B Note", "project", "note from b")
+            memory.sync()
+            memory.add_link("a-note", "b-note")
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                menu.related_projects()
+        finally:
+            os.chdir(old_cwd)
+        output = buf.getvalue()
+        self.assertIn("A Note", output)
+        self.assertIn("B Note", output)
+
+    def test_related_projects_none_says_so(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            menu.related_projects()
+        self.assertIn("no cross-project", buf.getvalue())
+
+    def test_browse_memory_delegates_to_the_browse_module(self):
+        with unittest.mock.patch("orc.browse.main") as mock_main:
+            menu.browse_memory()
+        mock_main.assert_called_once()
+
+    def test_manage_skills_shows_plugin_status_not_unmanaged(self):
+        install_path = self.root / "plugin-cache" / "ponytail"
+        skill_dir = install_path / "skills" / "ponytail"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("body")
+        config.CLAUDE_PLUGINS_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+        config.CLAUDE_PLUGINS_MANIFEST.write_text(json.dumps({
+            "plugins": {"ponytail@ponytail": [{"scope": "user", "installPath": str(install_path), "version": "4.10.0"}]}
+        }))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), unittest.mock.patch("builtins.input", return_value=""):
+            menu.manage_skills()
+        self.assertIn("[plugin]", buf.getvalue())
+        self.assertNotIn("[unmanaged]", buf.getvalue())
 
     def test_render_is_compact_no_blank_lines_between_items(self):
         # Regression test: a previous version grouped items into labeled
